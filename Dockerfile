@@ -17,7 +17,7 @@ RUN go mod download
 
 # Copy the full source tree and build the tam-over-http binary.
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux \
+RUN GOOS=linux \
     go build -trimpath -o /out/tam-over-http ./cmd/tam-over-http
 
 
