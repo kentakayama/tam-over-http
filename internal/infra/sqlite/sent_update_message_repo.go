@@ -14,13 +14,6 @@ import (
 	"github.com/kentakayama/tam-over-http/internal/domain/model"
 )
 
-// SentUpdateMessageWithManifests represents a sent update message with its associated SUIT manifests and token.
-type SentUpdateMessageWithManifests struct {
-	SentUpdateMessage model.SentUpdateMessage
-	Token             model.Token
-	Manifests         []model.SuitManifest
-}
-
 // SentUpdateMessageRepository handles sent update message persistence.
 type SentUpdateMessageRepository struct {
 	db *sql.DB
@@ -45,6 +38,64 @@ func (r *SentUpdateMessageRepository) Create(ctx context.Context, msg *model.Sen
 		return 0, err
 	}
 	return id, nil
+}
+
+// CreateWithToken inserts a new update message using a token bytes and returns the inserted id.
+func (r *SentUpdateMessageRepository) CreateWithToken(ctx context.Context, agentKID []byte, token []byte, msg *model.SentUpdateMessageWithManifests) (int64, error) {
+	// Find the agent by KID
+	agentRepo := NewAgentRepository(r.db)
+	agt, err := agentRepo.FindByKID(ctx, agentKID)
+	if err != nil {
+		return 0, fmt.Errorf("find agent: %w", err)
+	}
+	if agt == nil {
+		return 0, fmt.Errorf("agent not found")
+	}
+
+	// Find the token by bytes
+	tokenRepo := NewTokenRepository(r.db)
+	tok, err := tokenRepo.FindByToken(ctx, token)
+	if err != nil {
+		return 0, fmt.Errorf("find token: %w", err)
+	}
+	if tok == nil {
+		return 0, fmt.Errorf("token not found")
+	}
+	if tok.Consumed {
+		return 0, fmt.Errorf("token consumed")
+	}
+
+	update := model.SentUpdateMessage{
+		AgentID:   agt.ID,
+		TokenID:   tok.ID,
+		CreatedAt: msg.SentUpdateMessage.CreatedAt,
+	}
+	updID, err := r.Create(ctx, &update)
+	if err != nil {
+		return 0, fmt.Errorf("insert update: %w", err)
+	}
+
+	// search manifests and link them
+	suitManifestRepo := NewSuitManifestRepository(r.db)
+	for _, manifest := range msg.Manifests {
+		// Create the SUIT manifest
+		man, err := suitManifestRepo.FindByID(ctx, manifest.ID)
+		if err != nil {
+			return 0, fmt.Errorf("search suit manifest: %w", err)
+		}
+
+		// Insert into sent_manifests_in_update_messages
+		const insertManifestQuery = `
+			INSERT INTO sent_manifests_in_update_messages (sent_update_id, suit_manifest_id)
+			VALUES (?, ?)
+		`
+		_, err = r.db.ExecContext(ctx, insertManifestQuery, updID, man.ID)
+		if err != nil {
+			return 0, fmt.Errorf("insert into sent_manifests_in_update_messages: %w", err)
+		}
+	}
+
+	return updID, nil
 }
 
 // FindByTokenID returns sent update messages by token_id.
@@ -86,7 +137,7 @@ func (r *SentUpdateMessageRepository) FindByID(ctx context.Context, id int64) (*
 }
 
 // FindWithManifestsByToken returns a sent update message with its associated SUIT manifests by token.
-func (r *SentUpdateMessageRepository) FindWithManifestsByToken(ctx context.Context, token []byte) (*SentUpdateMessageWithManifests, error) {
+func (r *SentUpdateMessageRepository) FindWithManifestsByToken(ctx context.Context, token []byte) (*model.SentUpdateMessageWithManifests, error) {
 	const q = `
 		SELECT t.id, t.token, t.created_at, t.expired_at, t.consumed,
 		       sum.id, sum.agent_id, sum.token_id, sum.created_at,
@@ -103,7 +154,7 @@ func (r *SentUpdateMessageRepository) FindWithManifestsByToken(ctx context.Conte
 	}
 	defer rows.Close()
 
-	var result *SentUpdateMessageWithManifests
+	var result *model.SentUpdateMessageWithManifests
 	for rows.Next() {
 		var tok model.Token
 		var msg model.SentUpdateMessage
@@ -124,7 +175,7 @@ func (r *SentUpdateMessageRepository) FindWithManifestsByToken(ctx context.Conte
 		}
 
 		if result == nil {
-			result = &SentUpdateMessageWithManifests{
+			result = &model.SentUpdateMessageWithManifests{
 				SentUpdateMessage: msg,
 				Token:             tok,
 				Manifests:         []model.SuitManifest{},

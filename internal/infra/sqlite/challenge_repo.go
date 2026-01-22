@@ -107,6 +107,13 @@ func (r *ChallengeRepository) GenerateUniqueChallenge(ctx context.Context) ([]by
 			return nil, fmt.Errorf("check challenge uniqueness: %w", err)
 		}
 		if existing == nil {
+			c := model.Challenge{
+				Challenge: challenge,
+			}
+			_, err := r.Create(ctx, &c)
+			if err != nil {
+				return nil, fmt.Errorf("insert new challenge: %w", err)
+			}
 			return challenge, nil
 		}
 		// If exists, try again

@@ -6,7 +6,9 @@
 
 package model
 
-import "time"
+import (
+	"time"
+)
 
 // SentUpdateMessage represents a Update message sent by TAM.
 type SentUpdateMessage struct {
@@ -14,4 +16,11 @@ type SentUpdateMessage struct {
 	AgentID   int64
 	TokenID   int64
 	CreatedAt time.Time
+}
+
+// SentUpdateMessageWithManifests represents a sent update message with its associated SUIT manifests and token.
+type SentUpdateMessageWithManifests struct {
+	SentUpdateMessage SentUpdateMessage
+	Token             Token
+	Manifests         []SuitManifest
 }

@@ -107,6 +107,13 @@ func (r *TokenRepository) GenerateUniqueToken(ctx context.Context) ([]byte, erro
 			return nil, fmt.Errorf("check token uniqueness: %w", err)
 		}
 		if existing == nil {
+			c := model.Token{
+				Token: token,
+			}
+			_, err := r.Create(ctx, &c)
+			if err != nil {
+				return nil, fmt.Errorf("insert new token: %w", err)
+			}
 			return token, nil
 		}
 		// If exists, try again

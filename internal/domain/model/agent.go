@@ -9,6 +9,7 @@ package model
 import "time"
 
 type Agent struct {
+	ID        int64
 	KID       []byte // Primary Key
 	CreatedAt time.Time
 	ExpiredAt time.Time  // from eat['exp']
