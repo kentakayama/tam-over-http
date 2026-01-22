@@ -22,6 +22,7 @@ import (
 	"github.com/kentakayama/tam-over-http/internal/domain/model"
 	"github.com/kentakayama/tam-over-http/internal/infra/rats"
 	"github.com/kentakayama/tam-over-http/internal/infra/sqlite"
+	"github.com/kentakayama/tam-over-http/internal/suit"
 	"github.com/kentakayama/tam-over-http/resources"
 	"github.com/veraison/eat"
 	"github.com/veraison/go-cose"
@@ -77,8 +78,39 @@ func (t *TAM) ResolveTEEPMessage(body []byte) ([]byte, error) {
 	var response []byte
 	if len(body) == 0 {
 		// empty body means session creation, return QueryRequest
-		// TODO: generate signed COSE message of TAM
-		response = t.assets.queryCOSE
+		challenge := t.getChallenge()
+		if challenge == nil {
+			return nil, ErrFatal
+		}
+
+		sendingQueryRequest := TEEPMessage{
+			Type: TEEPTypeQueryRequest,
+			Options: TEEPOptions{
+				Challenge: challenge,
+			},
+			SupportedTEEPCipherSuites: [][]TEEPCipherSuite{
+				{
+					{
+						Type:      cose.CBORTagSign1Message,
+						Algorithm: int(cose.AlgorithmESP256),
+					},
+				},
+			},
+			SupportedSUITCOSEProfiles: []suit.COSEProfile{
+				{
+					DigestAlg:      cose.AlgorithmSHA256,
+					AuthAlg:        cose.AlgorithmESP256,
+					KeyExchangeAlg: cose.Algorithm(-29),
+					EncryptionAlg:  cose.Algorithm(-65534),
+				},
+			},
+		}
+		response, err := sendingQueryRequest.COSESign1Sign(t.assets.tamKey)
+		if err != nil {
+			return nil, ErrFatal
+		}
+
+		t.saveSentQueryRequest(&sendingQueryRequest, nil)
 		return response, nil
 	}
 
@@ -88,17 +120,18 @@ func (t *TAM) ResolveTEEPMessage(body []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	// TODO: search sent message by myself
-	sentMessage, err := t.searchSentMessage(incomingMessage)
-	if err != nil {
-		return nil, err
-	}
+	// TODO: search sent message by myself with token
+	sentMessage := t.searchSentMessageWithToken(incomingMessage.Options.Token)
+	// NOTE: sentMessage may be nil because the incomingMessage does not contain the token
+	// case 1) TAM sent QueryRequest with challenge & request-attestation
+	// case 2) someone created malformed TEEP Protocol messages
 
 	switch incomingMessage.Type {
 	case TEEPTypeQueryResponse:
 		// NOTE: authenticated == false is acceptable, because the verification key might be provided by the Verifier
 
-		if sentMessage.attestationRequired() {
+		if sentMessage == nil {
+			// attestation may be requested with challange i.e. the sent message does not contain token
 			attestationResults, err := t.verifyAttestationPayload(incomingMessage)
 			if err != nil {
 				return nil, err
@@ -110,6 +143,7 @@ func (t *TAM) ResolveTEEPMessage(body []byte) ([]byte, error) {
 			}
 
 			if !authenticated {
+				// TODO: extract AttestationResult in EAT form, not Evidence
 				s, err := tryCOSESign1OrSign(incomingMessage.Options.AttestationPayload)
 				if err != nil {
 					return nil, ErrAttestationFailed
@@ -123,20 +157,30 @@ func (t *TAM) ResolveTEEPMessage(body []byte) ([]byte, error) {
 				default:
 					return nil, ErrNotSupported
 				}
+
 				var eat eat.Eat
-				err = eat.FromCBOR(rawAttestationPayload)
-				if err != nil {
+				if err := eat.FromCBOR(rawAttestationPayload); err != nil {
 					t.logger.Printf("failed to extract attestation public key: %v", err)
 					return nil, ErrNotAuthenticated
 				}
-				if eat.Cnf == nil {
+
+				// validate that the EAT payload is generated with the challenge the TAM sent
+				if err := eat.Nonce.Validate(); err != nil {
 					return nil, ErrNotAuthenticated
 				}
-				key := eat.Cnf.Key
-				if key == nil {
+				if eat.Nonce.Len() != 1 {
+					return nil, ErrNotAuthenticated
+				}
+				sentMessage = t.searchSentMessageWithChallenge(eat.Nonce.GetI(0))
+				if sentMessage == nil {
+					return nil, ErrNotAuthenticated
+				}
+
+				if eat.Cnf == nil || eat.Cnf.Key == nil {
 					t.logger.Printf("attestation public key missing in payload")
 					return nil, ErrNotAuthenticated
 				}
+				key := eat.Cnf.Key
 
 				// verify QueryResponse signature
 				if err := verifyCOSESignature(body, key); err != nil {
@@ -156,11 +200,11 @@ func (t *TAM) ResolveTEEPMessage(body []byte) ([]byte, error) {
 		}
 
 		// finally authenticated?
-		if !authenticated {
+		if !authenticated || sentMessage == nil {
 			return nil, ErrNotAuthenticated
 		}
 
-		response, err = t.processQueryResponse(incomingMessage)
+		response, err = t.processQueryResponse(incomingMessage, sentMessage)
 		if err != nil {
 			return nil, err
 		}
@@ -319,47 +363,149 @@ func getKid(u cose.UnprotectedHeader) []byte {
 	return kid
 }
 
+func (t *TAM) saveSentQueryRequest(sending *TEEPMessage, agentKID []byte) error {
+	if sending == nil {
+		return ErrFatal
+	}
+	if sending.Type != TEEPTypeQueryRequest {
+		return ErrFatal
+	}
+
+	q := model.SentQueryRequestMessage{
+		AgentID:              nil, // TODO, search Agent with KID
+		AttestationRequested: sending.attestationRequired(),
+		TCListRequested:      sending.tcListRequired(),
+	}
+
+	sentQueryRequestRepo := sqlite.NewSentQueryRequestMessageRepository(t.db)
+	if sentQueryRequestRepo == nil {
+		return ErrFatal
+	}
+
+	if sending.Options.Token != nil {
+		if _, err := sentQueryRequestRepo.CreateWithToken(t.ctx, sending.Options.Token, &q); err != nil {
+			return ErrFatal
+		}
+	} else if sending.Options.Challenge != nil {
+		if _, err := sentQueryRequestRepo.CreateWithChallenge(t.ctx, sending.Options.Challenge, &q); err != nil {
+			return ErrFatal
+		}
+	} else {
+		return ErrFatal
+	}
+
+	return nil
+}
+
+func (t *TAM) getChallenge() []byte {
+	challengeRepo := sqlite.NewChallengeRepository(t.db)
+	if challengeRepo == nil {
+		return nil
+	}
+	challenge, err := challengeRepo.GenerateUniqueChallenge(t.ctx)
+	if err != nil {
+		return nil
+	}
+	return challenge
+}
+
+// search sent TEEP message by the TAM itself with challenge
+// returns the TEEPMessage, otherwise the error is set
+func (t *TAM) searchSentMessageWithChallenge(challenge []byte) *TEEPMessage {
+	if challenge == nil {
+		return nil
+	}
+
+	sentQueryRequestRepo := sqlite.NewSentQueryRequestMessageRepository(t.db)
+	if sentQueryRequestRepo == nil {
+		return nil
+	}
+	sentQueryRequest, err := sentQueryRequestRepo.FindByChallenge(t.ctx, challenge)
+	if err != nil {
+		return nil
+	}
+	if sentQueryRequest != nil {
+		var dataItemRequested uint
+		if sentQueryRequest.SentQueryRequestMessage.TCListRequested {
+			dataItemRequested += 1
+		}
+		if sentQueryRequest.SentQueryRequestMessage.AttestationRequested {
+			dataItemRequested += 2
+		}
+		sent := TEEPMessage{
+			Type: TEEPTypeQueryRequest,
+			Options: TEEPOptions{
+				Challenge: challenge,
+				// TODO items such as SupportedFreshnessMechanisms, ...
+			},
+			DataItemRequested: dataItemRequested,
+		}
+		return &sent
+	}
+
+	// nothing found
+	return nil
+}
+
 // search sent TEEP message by the TAM itself
 // returns the TEEPMessage, otherwise the error is set
-func (t *TAM) searchSentMessage(incoming *TEEPMessage) (*TEEPMessage, error) {
-	if incoming == nil {
-		return nil, ErrFatal
+func (t *TAM) searchSentMessageWithToken(token []byte) *TEEPMessage {
+	if token == nil {
+		return nil
 	}
-	var sent TEEPMessage
-	switch incoming.Type {
-	case TEEPTypeQueryResponse:
-		// TODO: search ACTUAL sent message, now this is prebuilt QueryRequest binary
-		err := cbor.Unmarshal(t.assets.queryPlain, &sent)
-		if err != nil {
-			return nil, ErrFatal
-		}
-		if sent.Type != TEEPTypeQueryRequest {
-			return nil, ErrNotAResponse
-		}
-		return &sent, nil
-	case TEEPTypeSuccess:
-		// TODO: search ACTUAL sent message, now this is prebuilt Update binary
-		err := cbor.Unmarshal(t.assets.updatePlain, &sent)
-		if err != nil {
-			return nil, ErrFatal
-		}
-		if sent.Type != TEEPTypeUpdate {
-			return nil, ErrNotAResponse
-		}
-		return &sent, nil
-	case TEEPTypeError:
-		// TODO: search ACTUAL sent message, now this is prebuilt Update binary
-		err := cbor.Unmarshal(t.assets.updatePlain, &sent)
-		if err != nil {
-			return nil, ErrFatal
-		}
-		if !(sent.Type == TEEPTypeUpdate || sent.Type == TEEPTypeQueryRequest) {
-			return nil, ErrNotAResponse
-		}
-		return &sent, nil
-	default:
-		return nil, ErrNotAResponse
+
+	sentQueryRequestRepo := sqlite.NewSentQueryRequestMessageRepository(t.db)
+	if sentQueryRequestRepo == nil {
+		return nil
 	}
+	sentQueryRequest, err := sentQueryRequestRepo.FindByToken(t.ctx, token)
+	if err != nil {
+		return nil
+	}
+	if sentQueryRequest != nil {
+		var dataItemRequested uint
+		if sentQueryRequest.SentQueryRequestMessage.TCListRequested {
+			dataItemRequested += 1
+		}
+		if sentQueryRequest.SentQueryRequestMessage.AttestationRequested {
+			dataItemRequested += 2
+		}
+		sent := TEEPMessage{
+			Type: TEEPTypeQueryRequest,
+			Options: TEEPOptions{
+				Token: token,
+				// TODO items such as SupportedFreshnessMechanisms, ...
+			},
+			DataItemRequested: dataItemRequested,
+		}
+		return &sent
+	}
+
+	sentUpdateRepo := sqlite.NewSentUpdateMessageRepository(t.db)
+	if sentUpdateRepo == nil {
+		return nil
+	}
+	sentUpdate, err := sentUpdateRepo.FindWithManifestsByToken(t.ctx, token)
+	if err != nil {
+		return nil
+	}
+	if sentUpdate != nil {
+		var manifestList []SUITManifestBstr
+		for i := 0; i < len(sentUpdate.Manifests); i++ {
+			manifestList = append(manifestList, sentUpdate.Manifests[0].Manifest)
+		}
+		sent := TEEPMessage{
+			Type: TEEPTypeUpdate,
+			Options: TEEPOptions{
+				Token:        token,
+				ManifestList: manifestList,
+			},
+		}
+		return &sent
+	}
+
+	// nothing found
+	return nil
 }
 
 // verifyAttestationPayload extracts the AttestationPayload from the provided TEEPMessage,
@@ -393,8 +539,16 @@ func (t *TAM) submitAttestationPayload(data []byte) (*rats.ProcessedAttestation,
 	return att, nil
 }
 
-func (t *TAM) processQueryResponse(incoming *TEEPMessage) ([]byte, error) {
-	t.logger.Printf("QueryResponse payload (COSE CBOR):\n%#v", *incoming)
+func (t *TAM) processQueryResponse(incomingMessage *TEEPMessage, sentMessage *TEEPMessage) ([]byte, error) {
+	// the incomingMessage (QueryResponse) must be authenticated and the sentMessage must be detected before this function
+	if sentMessage == nil {
+		return nil, ErrFatal
+	}
+	if !bytes.Equal(incomingMessage.Options.Token, sentMessage.Options.Token) {
+		return nil, ErrFatal
+	}
+
+	t.logger.Printf("QueryResponse payload (COSE CBOR):\n%#v", *incomingMessage)
 
 	// TODO: check RequestedTCList
 

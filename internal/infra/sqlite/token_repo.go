@@ -8,6 +8,7 @@ package sqlite
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
 	"fmt"
 
@@ -90,4 +91,24 @@ func (r *TokenRepository) FindByID(ctx context.Context, id int64) (*model.Token,
 		return nil, fmt.Errorf("scan token: %w", err)
 	}
 	return &t, nil
+}
+
+// GenerateUniqueToken generates a unique token bytes using crypto/rand and ensures uniqueness by checking the database.
+func (r *TokenRepository) GenerateUniqueToken(ctx context.Context) ([]byte, error) {
+	const tokenSize = 32 // 256 bits
+	for {
+		token := make([]byte, tokenSize)
+		if _, err := rand.Read(token); err != nil {
+			return nil, fmt.Errorf("generate random token: %w", err)
+		}
+		// Check if it already exists
+		existing, err := r.FindByToken(ctx, token)
+		if err != nil {
+			return nil, fmt.Errorf("check token uniqueness: %w", err)
+		}
+		if existing == nil {
+			return token, nil
+		}
+		// If exists, try again
+	}
 }

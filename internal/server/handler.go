@@ -80,13 +80,13 @@ func (h *handler) tamOverHttp(w http.ResponseWriter, r *http.Request) {
 
 	body, err := io.ReadAll(io.LimitReader(r.Body, maxRequestBodyBytes))
 	if err != nil {
-		h.logger.Printf("failed reading request body: %v", err)
-		http.Error(w, "failed to read request body", http.StatusBadRequest)
+		h.logger.Printf("failed to read request body: %v", err)
+		http.Error(w, "failed to parse TEEP Message", http.StatusBadRequest)
 		return
 	}
 	if err := r.Body.Close(); err != nil {
-		h.logger.Printf("failed closing request body: %v", err)
-		http.Error(w, "failed to close request body", http.StatusBadRequest)
+		h.logger.Printf("failed to close request body: %v", err)
+		http.Error(w, "failed to parse TEEP Message", http.StatusBadRequest)
 		return
 	}
 
