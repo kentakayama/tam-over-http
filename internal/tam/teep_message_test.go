@@ -91,7 +91,7 @@ func TestTEEPMessage_RoundTrip_QueryRequest_OK(t *testing.T) {
 	assert.Equal(t, TEEPCipherSuite{Type: 18, Algorithm: -9}, queryRequest.SupportedTEEPCipherSuites[0][0])
 	assert.Equal(t, TEEPCipherSuite{Type: 18, Algorithm: -19}, queryRequest.SupportedTEEPCipherSuites[1][0])
 	assert.Equal(t, suit.COSEProfile{DigestAlg: -16, AuthAlg: -9, KeyExchangeAlg: -29, EncryptionAlg: -65534}, queryRequest.SupportedSUITCOSEProfiles[0])
-	assert.Equal(t, uint(3), queryRequest.DataItemRequested)
+	assert.Equal(t, RequestDataItem(true, true, false, false), queryRequest.DataItemRequested)
 
 	encoded, err := cbor.Marshal(queryRequest)
 	assert.Nil(t, err)
@@ -416,7 +416,7 @@ func TestTEEPMessage_SignVerify_OK(t *testing.T) {
 				},
 			},
 		},
-		DataItemRequested: uint(3),
+		DataItemRequested: RequestDataItem(true, true, false, false),
 	}
 
 	signed, err := message.COSESign1Sign(&key)

@@ -373,8 +373,8 @@ func (t *TAM) saveSentQueryRequest(sending *TEEPMessage, agentKID []byte) error 
 
 	q := model.SentQueryRequestMessage{
 		AgentID:              nil, // TODO, search Agent with KID
-		AttestationRequested: sending.attestationRequired(),
-		TCListRequested:      sending.tcListRequired(),
+		AttestationRequested: sending.DataItemRequested.AttestationRequested(),
+		TCListRequested:      sending.DataItemRequested.TCListRequested(),
 	}
 
 	sentQueryRequestRepo := sqlite.NewSentQueryRequestMessageRepository(t.db)
@@ -425,20 +425,18 @@ func (t *TAM) searchSentMessageWithChallenge(challenge []byte) *TEEPMessage {
 		return nil
 	}
 	if sentQueryRequest != nil {
-		var dataItemRequested uint
-		if sentQueryRequest.SentQueryRequestMessage.TCListRequested {
-			dataItemRequested += 1
-		}
-		if sentQueryRequest.SentQueryRequestMessage.AttestationRequested {
-			dataItemRequested += 2
-		}
 		sent := TEEPMessage{
 			Type: TEEPTypeQueryRequest,
 			Options: TEEPOptions{
 				Challenge: challenge,
 				// TODO items such as SupportedFreshnessMechanisms, ...
 			},
-			DataItemRequested: dataItemRequested,
+			DataItemRequested: RequestDataItem(
+				sentQueryRequest.SentQueryRequestMessage.AttestationRequested,
+				sentQueryRequest.SentQueryRequestMessage.TCListRequested,
+				false, // TODO
+				false, // TODO
+			),
 		}
 		return &sent
 	}
@@ -463,20 +461,18 @@ func (t *TAM) searchSentMessageWithToken(token []byte) *TEEPMessage {
 		return nil
 	}
 	if sentQueryRequest != nil {
-		var dataItemRequested uint
-		if sentQueryRequest.SentQueryRequestMessage.TCListRequested {
-			dataItemRequested += 1
-		}
-		if sentQueryRequest.SentQueryRequestMessage.AttestationRequested {
-			dataItemRequested += 2
-		}
 		sent := TEEPMessage{
 			Type: TEEPTypeQueryRequest,
 			Options: TEEPOptions{
 				Token: token,
 				// TODO items such as SupportedFreshnessMechanisms, ...
 			},
-			DataItemRequested: dataItemRequested,
+			DataItemRequested: RequestDataItem(
+				sentQueryRequest.SentQueryRequestMessage.AttestationRequested,
+				sentQueryRequest.SentQueryRequestMessage.TCListRequested,
+				false, // TODO
+				false, // TODO
+			),
 		}
 		return &sent
 	}
