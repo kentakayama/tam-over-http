@@ -12,7 +12,44 @@ import (
 	"github.com/fxamacker/cbor/v2"
 	"github.com/kentakayama/tam-over-http/internal/suit"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/veraison/go-cose"
+)
+
+var (
+	testTAMKey = []byte{
+		0xA7,       //# map(7)
+		0x01,       //# unsigned(1) / 1 = kty /
+		0x02,       //# unsigned(2) / 2 = EC2 /
+		0x02,       //# unsigned(2) / 2 = kid /
+		0x58, 0x20, //# bytes(32)
+		0x4C, 0xE5, 0x30, 0xD7, 0x0F, 0xDC, 0xA7, 0xCD,
+		0x34, 0x12, 0x37, 0xC3, 0x06, 0x54, 0x9C, 0xA6,
+		0x68, 0xAD, 0xDD, 0xD9, 0x81, 0x63, 0x76, 0xE0,
+		0xCB, 0xE7, 0xB0, 0xAE, 0x73, 0x13, 0x88, 0x6A,
+		0x03,       //# unsigned(3) / 3 = alg /
+		0x28,       //# negative(8) / -9 = ESP256 /
+		0x20,       //# negative(0) / -1 = crv /
+		0x01,       //# unsigned(1) / 1 = P-256 /
+		0x21,       //# negative(1) / -2 = x /
+		0x58, 0x20, //# bytes(32)
+		0x0E, 0x90, 0x8A, 0xA8, 0xF0, 0x66, 0xDB, 0x1F,
+		0x08, 0x4E, 0x0C, 0x36, 0x52, 0xC6, 0x39, 0x52,
+		0xBD, 0x99, 0xF2, 0xA5, 0xBD, 0xB2, 0x2F, 0x9E,
+		0x01, 0x36, 0x7A, 0xAD, 0x03, 0xAB, 0xA6, 0x8B,
+		0x22,       //# negative(2) / -3 = y /
+		0x58, 0x20, //# bytes(32)
+		0x77, 0xDA, 0x1B, 0xD8, 0xAC, 0x4F, 0x0C, 0xB4,
+		0x90, 0xBA, 0x21, 0x06, 0x48, 0xBF, 0x79, 0xAB,
+		0x16, 0x4D, 0x49, 0xAD, 0x35, 0x51, 0xD7, 0x1D,
+		0x31, 0x4B, 0x27, 0x49, 0xEE, 0x42, 0xD2, 0x9A,
+		0x23,       //# negative(3) / -4 = d /
+		0x58, 0x20, //# bytes(32)
+		0x84, 0x1A, 0xEB, 0xB7, 0xB9, 0xEA, 0x6F, 0x02,
+		0x60, 0xBE, 0x73, 0x55, 0xA2, 0x45, 0x88, 0xB9,
+		0x77, 0xD2, 0x3D, 0x2A, 0xC5, 0xBF, 0x2B, 0x6B,
+		0x2D, 0x83, 0x79, 0x43, 0x2A, 0x1F, 0xEA, 0x98,
+	}
 )
 
 func TestTEEPMessage_RoundTrip_QueryRequest_OK(t *testing.T) {
@@ -44,7 +81,7 @@ func TestTEEPMessage_RoundTrip_QueryRequest_OK(t *testing.T) {
 
 	var queryRequest TEEPMessage
 	err := cbor.Unmarshal(encodedQueryRequest, &queryRequest)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	assert.Equal(t, TEEPTypeQueryRequest, queryRequest.Type)
 	assert.Equal(t, []TEEPVersion{0}, queryRequest.Options.Versions)
 	assert.Equal(t, []byte{
@@ -344,4 +381,49 @@ func TestTEEPMessage_AgentQueryResponse(t *testing.T) {
 	err := cbor.Unmarshal(encodedQueryResponse, &queryResponse)
 	assert.Nil(t, err)
 	assert.Equal(t, TEEPTypeQueryResponse, queryResponse.Type)
+}
+
+func TestTEEPMessage_SignVerify_OK(t *testing.T) {
+	var key cose.Key
+	err := cbor.Unmarshal(testTAMKey, &key)
+	require.Nil(t, err)
+
+	message := TEEPMessage{
+		Type: TEEPTypeQueryRequest,
+		Options: TEEPOptions{
+			Versions: []TEEPVersion{0},
+			Token:    []byte{0xa0, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7, 0xa8, 0xa9, 0xaa, 0xab, 0xac, 0xad, 0xae, 0xaf},
+			SupportedTEEPCipherSuites: [][]TEEPCipherSuite{
+				{
+					{
+						Type:      cose.CBORTagSign1Message,
+						Algorithm: int(cose.AlgorithmESP256),
+					},
+				},
+				{
+					{
+						Type:      cose.CBORTagSign1Message,
+						Algorithm: int(cose.AlgorithmEd25519EdDSA),
+					},
+				},
+			},
+			SupportedSUITCOSEProfiles: []suit.COSEProfile{
+				{
+					DigestAlg:      cose.AlgorithmSHA256,
+					AuthAlg:        cose.AlgorithmESP256,
+					KeyExchangeAlg: cose.Algorithm(-29),
+					EncryptionAlg:  cose.Algorithm(-65534),
+				},
+			},
+		},
+		DataItemRequested: uint(3),
+	}
+
+	signed, err := message.COSESign1Sign(&key)
+	require.Nil(t, err)
+
+	var payload TEEPMessage
+	err = payload.COSESign1Verify(&key, signed)
+	require.Nil(t, err)
+	assert.Equal(t, message, payload)
 }
