@@ -7,10 +7,13 @@
 package tam
 
 import (
+	"crypto"
+	"crypto/rand"
 	"fmt"
 
 	"github.com/fxamacker/cbor/v2"
 	"github.com/kentakayama/tam-over-http/internal/suit"
+	"github.com/veraison/go-cose"
 )
 
 // draft-ietf-teep-protocol
@@ -106,6 +109,70 @@ func (m *TEEPMessage) UnmarshalCBOR(data []byte) error {
 	}
 
 	return nil
+}
+
+// COSESign1Sign signs the TEEPMessage using the provided key and returns the signed message as a byte slice.
+// It creates a signer from the key, generates the necessary headers, marshals the TEEPMessage into CBOR format,
+// and then signs the message using COSE Sign1.
+// The function returns the signed message and any error encountered during the process.
+func (t *TEEPMessage) COSESign1Sign(key *cose.Key) ([]byte, error) {
+	// create a signer
+	signer, err := key.Signer()
+	if err != nil {
+		return nil, err
+	}
+
+	alg, err := key.AlgorithmOrDefault()
+	if err != nil {
+		return nil, err
+	}
+	kid, err := key.Thumbprint(crypto.SHA256)
+	if err != nil {
+		return nil, err
+	}
+
+	// create message header
+	headers := cose.Headers{
+		Protected: cose.ProtectedHeader{
+			cose.HeaderLabelAlgorithm: alg,
+		},
+		Unprotected: cose.UnprotectedHeader{
+			cose.HeaderLabelKeyID: kid,
+		},
+	}
+
+	// encode TEEP Message
+	tbsMessage, err := cbor.Marshal(t)
+	if err != nil {
+		return nil, err
+	}
+
+	// sign and marshal message
+	return cose.Sign1(rand.Reader, signer, headers, tbsMessage, nil)
+}
+
+// COSESign1Verify verifies the signature of a COSE Sign1 message against the provided key.
+// It takes a signed TEEP Protocol message byte slice and unmarshals it into a COSE Sign1 message.
+// The function then verifies the signature using the verifier created from the key.
+// If the verification is successful, it unmarshals the payload into the TEEPMessage instance.
+// This function requires an existing TEEPMessage variable to store the result of the verification.
+func (t *TEEPMessage) COSESign1Verify(key *cose.Key, sig []byte) error {
+	// create a verifier
+	verifier, err := key.Verifier()
+	if err != nil {
+		return err
+	}
+
+	// create a sign message from a raw COSE_Sign1 payload
+	var msg cose.Sign1Message
+	if err = msg.UnmarshalCBOR(sig); err != nil {
+		return err
+	}
+	if err := msg.Verify(nil, verifier); err != nil {
+		return err
+	}
+
+	return cbor.Unmarshal(msg.Payload, t)
 }
 
 type TEEPMessageType int
