@@ -18,12 +18,19 @@ import (
 
 	"github.com/fxamacker/cbor/v2"
 	"github.com/kentakayama/tam-over-http/internal/infra/rats"
+	"github.com/kentakayama/tam-over-http/internal/suit"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/veraison/eat"
 	"github.com/veraison/go-cose"
 )
 
 var (
+	tcID = suit.ComponentID{
+		{
+			0x68, 0x65, 0x6c, 0x6c, 0x6f, 0x2e, 0x74, 0x78, 0x74, // hello.txt
+		},
+	}
 	teepSuccessESP256 = []byte{
 		0xd2, 0x84, 0x43, 0xa1, 0x01, 0x28, 0xa1, 0x04, 0x58, 0x20, 0xd0, 0x8d,
 		0x16, 0x02, 0xca, 0xa2, 0xd0, 0xae, 0x0a, 0xde, 0x02, 0x66, 0x62, 0x92,
@@ -75,7 +82,7 @@ func (e *MockEATVerifier) Process(data []byte) (*rats.ProcessedAttestation, erro
 	return &ret, nil
 }
 
-func TestTAMResolveTEEPMessage_EAT_ESP256_OK(t *testing.T) {
+func TestTAMResolveTEEPMessage_AgentAttestation_OK(t *testing.T) {
 	logger := log.Default()
 	verifier := MockEATVerifier{}
 	tam, err := NewTAM(false, &verifier, logger)
@@ -85,7 +92,7 @@ func TestTAMResolveTEEPMessage_EAT_ESP256_OK(t *testing.T) {
 	if err = tam.InitWithPath(":memory:"); err != nil {
 		t.Fatalf("TAM Init error: %v", err)
 	}
-	if err = tam.EnsureDefaultTCDeveloper(); err != nil {
+	if err = tam.EnsureDefaultTCDeveloper(false); err != nil {
 		t.Fatalf("TAM EnsureDefaultTCDeveloper error: %v", err)
 	}
 	// tam.EnsureDefaultTEEPAgent is not required, because EAT can carry the public key of the TEEP Agent
@@ -109,28 +116,48 @@ func TestTAMResolveTEEPMessage_EAT_ESP256_OK(t *testing.T) {
 	attesterSigner, err := cose.NewSigner(cose.AlgorithmES256, ecdsaAttesterKey)
 	require.Nil(t, err)
 
-	// TEST#1: return QueryRequest against empty body
-	response, err := tam.ResolveTEEPMessage(nil)
+	// TEST#1: process empty body to return QueryRequest with Token
+	responseEmpty, err := tam.ResolveTEEPMessage(nil)
 	require.Nil(t, err)
 
-	outgoingMessage, authenticated, err := tam.tryAuthenticateTeepMessage(response)
-	// correct, because its TAM's message, whose key is not in the key chain
-	require.Equal(t, ErrNotAuthenticated, err)
-	require.Equal(t, false, authenticated)
+	var outgoingQueryRequestWithToken TEEPMessage
+	err = outgoingQueryRequestWithToken.COSESign1Verify(tam.assets.tamKey, responseEmpty)
+	require.Nil(t, err)
+	assert.Equal(t, TEEPTypeQueryRequest, outgoingQueryRequestWithToken.Type)
 
-	require.NotNil(t, outgoingMessage)
-	require.Equal(t, TEEPTypeQueryRequest, outgoingMessage.Type)
+	// TEST#2: generate TEEP Agent's QueryResponse with Token
+	assert.Nil(t, outgoingQueryRequestWithToken.Options.Challenge)
+	require.NotNil(t, outgoingQueryRequestWithToken.Options.Token)
+	assert.Equal(t, true, outgoingQueryRequestWithToken.DataItemRequested.TCListRequested())
+	queryResponseWithTCList := TEEPMessage{
+		Type: TEEPTypeQueryResponse,
+		Options: TEEPOptions{
+			Token: outgoingQueryRequestWithToken.Options.Token,
+			TCList: []suit.SystemPropertyClaims{
+				{
+					SystemComponentID: tcID,
+				},
+			},
+		},
+	}
+	signedQueryResponseWithTCList, err := queryResponseWithTCList.COSESign1Sign(agentKey)
+	require.Nil(t, err)
 
-	// TEST#2: generate TEEP Agent's QueryResponse
-	logger.Printf("challenge: %s", hex.EncodeToString(outgoingMessage.Options.Challenge))
+	// TEST#3: process QueryRequest with Token to return QueryRequest with Challenge
+	responseTCList, err := tam.ResolveTEEPMessage(signedQueryResponseWithTCList)
+	require.Nil(t, err)
+	require.NotNil(t, responseTCList)
+
+	var outgoingQueryRequestWithChallenge TEEPMessage
+	err = outgoingQueryRequestWithChallenge.COSESign1Verify(tam.assets.tamKey, responseTCList)
+	require.Nil(t, err)
+	assert.Equal(t, TEEPTypeQueryRequest, outgoingQueryRequestWithChallenge.Type)
+
+	// TEST#4: generate TEEP Agent's QueryResponse with Challenge
+	assert.Nil(t, outgoingQueryRequestWithChallenge.Options.Token)
+	require.NotNil(t, outgoingQueryRequestWithChallenge.Options.Challenge)
 	nonce := eat.Nonce{}
-	nonce.Add(outgoingMessage.Options.Challenge)
-	encodedNonce, err := cbor.Marshal(nonce)
-	require.Nil(t, err)
-	var decodedNonceBytes []byte
-	err = cbor.Unmarshal(encodedNonce, &decodedNonceBytes)
-	require.Nil(t, err)
-	require.Equal(t, outgoingMessage.Options.Challenge, decodedNonceBytes)
+	nonce.Add(outgoingQueryRequestWithChallenge.Options.Challenge)
 	evidence := eat.Eat{
 		Nonce: &nonce,
 	}
@@ -139,7 +166,6 @@ func TestTAMResolveTEEPMessage_EAT_ESP256_OK(t *testing.T) {
 	}
 	encodedEvidence, err := cbor.Marshal(evidence)
 	require.Nil(t, err)
-	logger.Printf("raw Evidence: %s\n", hex.EncodeToString(encodedEvidence))
 	// create message header
 	headers := cose.Headers{
 		Protected: cose.ProtectedHeader{
@@ -155,11 +181,12 @@ func TestTAMResolveTEEPMessage_EAT_ESP256_OK(t *testing.T) {
 			AttestationPayload: signedEvidence,
 		},
 	}
-	queryResponseEATESP256, err := queryResponse.COSESign1Sign(agentKey)
+	signedQueryResponseWithEvidence, err := queryResponse.COSESign1Sign(agentKey)
 
-	// TEST#3a: return Update against QueryResponse
-	response, err = tam.ResolveTEEPMessage(queryResponseEATESP256)
+	// TEST#5: process QueryResponse with Evidence to return empty
+	responseEvidence, err := tam.ResolveTEEPMessage(signedQueryResponseWithEvidence)
 	require.Nil(t, err)
+	assert.Nil(t, responseEvidence)
 	// make sure that the key is trusted while resolving QueryResponse with EAT Cnf claim
 
 	// TEST#3b: confirm stored TEEP Agent's key
@@ -169,22 +196,78 @@ func TestTAMResolveTEEPMessage_EAT_ESP256_OK(t *testing.T) {
 	ckt, err := key.Thumbprint(crypto.SHA256)
 	require.Nil(t, err)
 	require.Equal(t, agentKID, ckt)
+}
 
-	outgoingMessage, authenticated, err = tam.tryAuthenticateTeepMessage(response)
-	// correct, because its TAM's message, whose key is not in the key chain
-	require.Equal(t, ErrNotAuthenticated, err)
-	require.Equal(t, false, authenticated)
+func TestTAMResolveTEEPMessage_AgentUpdate_OK(t *testing.T) {
+	logger := log.Default()
+	verifier := MockEATVerifier{}
+	tam, err := NewTAM(false, &verifier, logger)
+	if err != nil {
+		t.Fatalf("NewTAM error: %v", err)
+	}
+	if err = tam.InitWithPath(":memory:"); err != nil {
+		t.Fatalf("TAM Init error: %v", err)
+	}
+	if err = tam.EnsureDefaultTCDeveloper(true); err != nil {
+		t.Fatalf("TAM EnsureDefaultTCDeveloper error: %v", err)
+	}
+	if err = tam.EnsureDefaultTEEPAgent(); err != nil {
+		t.Fatalf("TAM EnsureDefaultTEEPAgent error: %v", err)
+	}
 
-	require.NotNil(t, outgoingMessage)
-	require.Equal(t, TEEPTypeUpdate, outgoingMessage.Type)
-
-	// TEST#4a: return nothing against TEEP Success message
-	response, err = tam.ResolveTEEPMessage(teepSuccessESP256)
+	kid, err := tam.assets.tamKey.Thumbprint(crypto.SHA256)
+	fmt.Printf("TAM's kid: %s\n", hex.EncodeToString(kid))
 	require.Nil(t, err)
-	require.Equal(t, []byte(nil), response)
+	require.NotNil(t, kid)
 
-	// TEST#4b: return nothing against TEEP Error message
-	response, err = tam.ResolveTEEPMessage(teepErrorESP256)
+	// get TEEP Agent's key
+	agentKID := []byte{
+		0xd0, 0x8d, 0x16, 0x02, 0xca, 0xa2, 0xd0, 0xae, 0x0a, 0xde, 0x02, 0x66, 0x62, 0x92, 0xb1, 0x4c,
+		0xef, 0xd0, 0xd0, 0x28, 0x2a, 0x15, 0x3f, 0x77, 0x73, 0xac, 0xf6, 0xfd, 0xd0, 0xc0, 0xd3, 0x78,
+	}
+	agentKey, err := tam.getTEEPAgentKey(agentKID)
 	require.Nil(t, err)
-	require.Equal(t, []byte(nil), response)
+
+	// TEST#1: process empty body to return QueryRequest with Token
+	responseEmpty, err := tam.ResolveTEEPMessage(nil)
+	require.Nil(t, err)
+
+	var outgoingQueryRequestWithToken TEEPMessage
+	err = outgoingQueryRequestWithToken.COSESign1Verify(tam.assets.tamKey, responseEmpty)
+	require.Nil(t, err)
+	assert.Equal(t, TEEPTypeQueryRequest, outgoingQueryRequestWithToken.Type)
+
+	// TEST#2: generate TEEP Agent's QueryResponse with Token
+	assert.Nil(t, outgoingQueryRequestWithToken.Options.Challenge)
+	require.NotNil(t, outgoingQueryRequestWithToken.Options.Token)
+	assert.Equal(t, true, outgoingQueryRequestWithToken.DataItemRequested.TCListRequested())
+	queryResponseWithTCList := TEEPMessage{
+		Type: TEEPTypeQueryResponse,
+		Options: TEEPOptions{
+			Token: outgoingQueryRequestWithToken.Options.Token,
+			TCList: []suit.SystemPropertyClaims{
+				{
+					SystemComponentID: tcID,
+				},
+			},
+			RequestedTCList: []RequestedTCInfo{
+				{
+					ComponentID: tcID,
+					// latest
+				},
+			},
+		},
+	}
+	signedQueryResponseWithTCList, err := queryResponseWithTCList.COSESign1Sign(agentKey)
+	require.Nil(t, err)
+
+	// TEST#3: process QueryRequest with Token to return Update
+	responseTCList, err := tam.ResolveTEEPMessage(signedQueryResponseWithTCList)
+	require.Nil(t, err)
+	require.NotNil(t, responseTCList)
+
+	var outgoingUpdate TEEPMessage
+	err = outgoingUpdate.COSESign1Verify(tam.assets.tamKey, responseTCList)
+	require.Nil(t, err)
+	assert.Equal(t, TEEPTypeUpdate, outgoingUpdate.Type)
 }
