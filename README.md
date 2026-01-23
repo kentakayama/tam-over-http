@@ -77,7 +77,7 @@ sequenceDiagram
     TAM->>Verifier: Submit Evidence
     Verifier-->>TAM: Attestation Results with EAR JSON
     TAM-->>Client: Update
-    Client->>Client: Process SUIT Manifest
+    Client->>Client: Process SUIT Manifest<br/>to install WasmApp
     Client->>TAM: Success
     TAM-->>Client: (Terminate)
 ```
