@@ -27,7 +27,7 @@ func NewAgentRepository(db *sql.DB) *AgentRepository {
 
 func (r *AgentRepository) FindByKID(ctx context.Context, kid []byte) (*model.Agent, error) {
 	const query = `
-		SELECT kid, created_at, expired_at, revoked_at, public_key
+		SELECT id, kid, created_at, expired_at, revoked_at, public_key
 		FROM agents
 		WHERE kid = ?
 		LIMIT 1
@@ -35,7 +35,7 @@ func (r *AgentRepository) FindByKID(ctx context.Context, kid []byte) (*model.Age
 	row := r.db.QueryRowContext(ctx, query, kid)
 	var a model.Agent
 	var revokedAtUnix sql.NullInt64
-	if err := row.Scan(&a.KID, &a.CreatedAt, &a.ExpiredAt, &revokedAtUnix, &a.PublicKey); err != nil {
+	if err := row.Scan(&a.ID, &a.KID, &a.CreatedAt, &a.ExpiredAt, &revokedAtUnix, &a.PublicKey); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, domain.ErrNotFound
 		}
@@ -65,7 +65,7 @@ func (r *AgentRepository) FindByKID(ctx context.Context, kid []byte) (*model.Age
 // It only checks if the agent exists and is not expired.
 func (r *AgentRepository) FindByKIDIgnoreRevoked(ctx context.Context, kid []byte) (*model.Agent, error) {
 	const query = `
-		SELECT kid, created_at, expired_at, revoked_at, public_key
+		SELECT id, kid, created_at, expired_at, revoked_at, public_key
 		FROM agents
 		WHERE kid = ?
 		LIMIT 1
@@ -73,7 +73,7 @@ func (r *AgentRepository) FindByKIDIgnoreRevoked(ctx context.Context, kid []byte
 	row := r.db.QueryRowContext(ctx, query, kid)
 	var a model.Agent
 	var revokedAtUnix sql.NullInt64
-	if err := row.Scan(&a.KID, &a.CreatedAt, &a.ExpiredAt, &revokedAtUnix, &a.PublicKey); err != nil {
+	if err := row.Scan(&a.ID, &a.KID, &a.CreatedAt, &a.ExpiredAt, &revokedAtUnix, &a.PublicKey); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}

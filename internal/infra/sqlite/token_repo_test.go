@@ -53,6 +53,7 @@ func TestToken_CreateFindByToken(t *testing.T) {
 }
 
 func TestToken_MarkConsumed(t *testing.T) {
+	tokenBytes := []byte("token-2")
 	ctx := context.Background()
 	db, err := InitDB(ctx, ":memory:")
 	if err != nil {
@@ -64,7 +65,7 @@ func TestToken_MarkConsumed(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Second)
 
 	token := &model.Token{
-		Token:     []byte("token-2"),
+		Token:     tokenBytes,
 		CreatedAt: now,
 		ExpiredAt: now.Add(1 * time.Hour),
 		Consumed:  false,
@@ -75,7 +76,7 @@ func TestToken_MarkConsumed(t *testing.T) {
 		t.Fatalf("Create error: %v", err)
 	}
 
-	if err := repo.MarkConsumed(ctx, id); err != nil {
+	if err := repo.MarkConsumed(ctx, tokenBytes); err != nil {
 		t.Fatalf("MarkConsumed error: %v", err)
 	}
 

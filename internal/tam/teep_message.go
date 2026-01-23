@@ -26,7 +26,7 @@ type TEEPMessage struct {
 	// for QueryRequest
 	SupportedTEEPCipherSuites [][]TEEPCipherSuite
 	SupportedSUITCOSEProfiles []suit.COSEProfile
-	DataItemRequested         uint
+	DataItemRequested         DataItemRequested
 
 	// for Error
 	ErrCode TEEPErrCode
@@ -203,34 +203,6 @@ func (t TEEPMessageType) String() string {
 	}
 }
 
-func (t *TEEPMessage) attestationRequired() bool {
-	if t.Type == TEEPTypeQueryRequest && (t.DataItemRequested&0b1 != 0) {
-		return true
-	}
-	return false
-}
-
-func (t *TEEPMessage) tcListRequired() bool {
-	if t.Type == TEEPTypeQueryRequest && (t.DataItemRequested&0b10 != 0) {
-		return true
-	}
-	return false
-}
-
-func (t *TEEPMessage) extListRequired() bool {
-	if t.Type == TEEPTypeQueryRequest && (t.DataItemRequested&0b100 != 0) {
-		return true
-	}
-	return false
-}
-
-func (t *TEEPMessage) suitReportsRequired() bool {
-	if t.Type == TEEPTypeQueryRequest && (t.DataItemRequested&0b1000 != 0) {
-		return true
-	}
-	return false
-}
-
 type TEEPOptions struct {
 	SupportedTEEPCipherSuites    [][]TEEPCipherSuite         `cbor:"1,keyasint,omitempty"`
 	Challenge                    []byte                      `cbor:"2,keyasint,omitempty"`
@@ -254,6 +226,47 @@ type TEEPOptions struct {
 
 type TEEPVersion uint32
 type TEEPExtInfo uint32
+
+type DataItemRequested uint
+
+const attestationMask = 0b1
+const tcListMask = 0b10
+const extensionsMask = 0b100
+const suitReportsMask = 0b1000
+
+func RequestDataItem(attestation bool, tcList bool, extensions bool, suitReports bool) DataItemRequested {
+	var v DataItemRequested
+
+	if attestation {
+		v |= attestationMask
+	}
+	if tcList {
+		v |= tcListMask
+	}
+	if extensions {
+		v |= extensionsMask
+	}
+	if suitReports {
+		v += suitReportsMask
+	}
+	return v
+}
+
+func (v DataItemRequested) AttestationRequested() bool {
+	return v&attestationMask != 0
+}
+
+func (v DataItemRequested) TCListRequested() bool {
+	return v&tcListMask != 0
+}
+
+func (v DataItemRequested) ExtensionsRequested() bool {
+	return v&extensionsMask != 0
+}
+
+func (v DataItemRequested) SUITReportsRequested() bool {
+	return v&suitReportsMask != 0
+}
 
 type TEEPErrCode uint8
 

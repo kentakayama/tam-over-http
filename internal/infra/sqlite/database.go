@@ -191,7 +191,7 @@ func createSchema(ctx context.Context, db *sql.DB) error {
 	CREATE INDEX IF NOT EXISTS idx_suit_manifests_signing_key_id ON suit_manifests(manifest_signing_key_id);
 
 	-- Sent Updates table
-	CREATE TABLE IF NOT EXISTS sent_updates (
+	CREATE TABLE IF NOT EXISTS sent_update_messages (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		agent_id INTEGER NOT NULL,
 		token_id INTEGER NOT NULL,
@@ -202,12 +202,12 @@ func createSchema(ctx context.Context, db *sql.DB) error {
 	);
 
 	-- SUIT Manifests Sent in Updates table
-	CREATE TABLE IF NOT EXISTS suit_manifests_sent_in_updates (
+	CREATE TABLE IF NOT EXISTS sent_manifests_in_update_messages (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		sent_update_id INTEGER NOT NULL,
 		suit_manifest_id INTEGER NOT NULL,
 		-- table constraints (placed after column definitions for compatibility)
-		FOREIGN KEY (sent_update_id) REFERENCES sent_updates(id) ON DELETE CASCADE,
+		FOREIGN KEY (sent_update_id) REFERENCES sent_update_messages(id) ON DELETE CASCADE,
 		FOREIGN KEY (suit_manifest_id) REFERENCES suit_manifests(id) ON DELETE CASCADE
 	);
 

@@ -8,6 +8,7 @@ package sqlite
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
 	"fmt"
 
@@ -59,16 +60,23 @@ func (r *ChallengeRepository) FindByChallenge(ctx context.Context, challengeByte
 	return &c, nil
 }
 
-// MarkConsumed marks a challenge as consumed.
+// MarkConsumed marks a challenge as consumed if it is not already consumed.
 func (r *ChallengeRepository) MarkConsumed(ctx context.Context, id int64) error {
 	const q = `
 		UPDATE challenges
 		SET consumed = 1
-		WHERE id = ?
+		WHERE id = ? AND consumed = 0
 	`
-	_, err := r.db.ExecContext(ctx, q, id)
+	res, err := r.db.ExecContext(ctx, q, id)
 	if err != nil {
 		return fmt.Errorf("update challenge: %w", err)
+	}
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("get rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return fmt.Errorf("challenge already consumed or not found")
 	}
 	return nil
 }
@@ -90,4 +98,31 @@ func (r *ChallengeRepository) FindByID(ctx context.Context, id int64) (*model.Ch
 		return nil, fmt.Errorf("scan challenge: %w", err)
 	}
 	return &c, nil
+}
+
+// GenerateUniqueChallenge generates a unique challenge bytes using crypto/rand and ensures uniqueness by checking the database.
+func (r *ChallengeRepository) GenerateUniqueChallenge(ctx context.Context) ([]byte, error) {
+	const challengeSize = 32 // 256 bits
+	for {
+		challenge := make([]byte, challengeSize)
+		if _, err := rand.Read(challenge); err != nil {
+			return nil, fmt.Errorf("generate random challenge: %w", err)
+		}
+		// Check if it already exists
+		existing, err := r.FindByChallenge(ctx, challenge)
+		if err != nil {
+			return nil, fmt.Errorf("check challenge uniqueness: %w", err)
+		}
+		if existing == nil {
+			c := model.Challenge{
+				Challenge: challenge,
+			}
+			_, err := r.Create(ctx, &c)
+			if err != nil {
+				return nil, fmt.Errorf("insert new challenge: %w", err)
+			}
+			return challenge, nil
+		}
+		// If exists, try again
+	}
 }

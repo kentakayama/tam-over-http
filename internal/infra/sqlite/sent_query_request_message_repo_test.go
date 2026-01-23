@@ -15,6 +15,8 @@ import (
 )
 
 func TestSentQueryRequestMessage_Pattern1_TokenWithoutChallenge(t *testing.T) {
+	tokenBytes := []byte("token-test")
+
 	// Pattern 1: token exists, no challenge, tc_list_requested=TRUE, attestation_requested=FALSE, agent_id exists
 	ctx := context.Background()
 	db, err := InitDB(ctx, ":memory:")
@@ -38,7 +40,7 @@ func TestSentQueryRequestMessage_Pattern1_TokenWithoutChallenge(t *testing.T) {
 	// Create a token
 	tokenRepo := NewTokenRepository(db)
 	token := &model.Token{
-		Token:     []byte("token-test"),
+		Token:     tokenBytes,
 		CreatedAt: now,
 		ExpiredAt: now.Add(1 * time.Hour),
 		Consumed:  false,
@@ -65,31 +67,33 @@ func TestSentQueryRequestMessage_Pattern1_TokenWithoutChallenge(t *testing.T) {
 	}
 
 	// Find by token
-	got, err := repo.FindByTokenID(ctx, tokenID)
+	got, err := repo.FindByToken(ctx, tokenBytes)
 	if err != nil {
 		t.Fatalf("FindByTokenID error: %v", err)
 	}
 	if got == nil {
 		t.Fatalf("expected message, got nil")
 	}
-	if got.ID != msgID {
-		t.Fatalf("message id mismatch: want %d got %d", msgID, got.ID)
+	if got.SentQueryRequestMessage.ID != msgID {
+		t.Fatalf("message id mismatch: want %d got %d", msgID, got.SentQueryRequestMessage.ID)
 	}
-	if *got.AgentID != agentID {
-		t.Fatalf("agent id mismatch: want %d got %d", agentID, *got.AgentID)
+	if *got.SentQueryRequestMessage.AgentID != agentID {
+		t.Fatalf("agent id mismatch: want %d got %d", agentID, *got.SentQueryRequestMessage.AgentID)
 	}
-	if got.AttestationRequested {
+	if got.SentQueryRequestMessage.AttestationRequested {
 		t.Fatalf("expected attestation_requested=false, got true")
 	}
-	if !got.TCListRequested {
+	if !got.SentQueryRequestMessage.TCListRequested {
 		t.Fatalf("expected tc_list_requested=true, got false")
 	}
-	if got.ChallengeID != nil {
-		t.Fatalf("expected challenge_id=nil, got %d", *got.ChallengeID)
+	if got.SentQueryRequestMessage.ChallengeID != nil {
+		t.Fatalf("expected challenge_id=nil, got %d", *got.SentQueryRequestMessage.ChallengeID)
 	}
 }
 
 func TestSentQueryRequestMessage_Pattern2_ChallengeWithoutToken(t *testing.T) {
+	challengeBytes := []byte("challenge-test")
+
 	// Pattern 2: no token, challenge exists, tc_list_requested=TRUE, attestation_requested=TRUE, no agent_id (NULL)
 	ctx := context.Background()
 	db, err := InitDB(ctx, ":memory:")
@@ -103,7 +107,7 @@ func TestSentQueryRequestMessage_Pattern2_ChallengeWithoutToken(t *testing.T) {
 	// Create a challenge
 	challengeRepo := NewChallengeRepository(db)
 	challenge := &model.Challenge{
-		Challenge: []byte("challenge-test"),
+		Challenge: challengeBytes,
 		CreatedAt: now,
 		ExpiredAt: now.Add(1 * time.Hour),
 		Consumed:  false,
@@ -130,27 +134,27 @@ func TestSentQueryRequestMessage_Pattern2_ChallengeWithoutToken(t *testing.T) {
 	}
 
 	// Find by challenge
-	got, err := repo.FindByChallengeID(ctx, challengeID)
+	got, err := repo.FindByChallenge(ctx, challengeBytes)
 	if err != nil {
 		t.Fatalf("FindByChallengeID error: %v", err)
 	}
 	if got == nil {
 		t.Fatalf("expected message, got nil")
 	}
-	if got.ID != msgID {
-		t.Fatalf("message id mismatch: want %d got %d", msgID, got.ID)
+	if got.SentQueryRequestMessage.ID != msgID {
+		t.Fatalf("message id mismatch: want %d got %d", msgID, got.SentQueryRequestMessage.ID)
 	}
-	if got.AgentID != nil {
-		t.Fatalf("expected agent_id=nil, got %d", *got.AgentID)
+	if got.SentQueryRequestMessage.AgentID != nil {
+		t.Fatalf("expected agent_id=nil, got %d", *got.SentQueryRequestMessage.AgentID)
 	}
-	if !got.AttestationRequested {
+	if !got.SentQueryRequestMessage.AttestationRequested {
 		t.Fatalf("expected attestation_requested=true, got false")
 	}
-	if !got.TCListRequested {
+	if !got.SentQueryRequestMessage.TCListRequested {
 		t.Fatalf("expected tc_list_requested=true, got false")
 	}
-	if got.TokenID != nil {
-		t.Fatalf("expected token_id=nil, got %d", *got.TokenID)
+	if got.SentQueryRequestMessage.TokenID != nil {
+		t.Fatalf("expected token_id=nil, got %d", *got.SentQueryRequestMessage.TokenID)
 	}
 }
 
