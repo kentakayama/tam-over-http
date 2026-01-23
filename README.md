@@ -1,6 +1,15 @@
 # tam-over-http
 
-`tam-over-http` is a lightweight mock Trusted Application Manager (TAM) server used to exercise WebAssembly-based TEEP (Trusted Execution Environment Provisioning) clients. It serves deterministic responses that model the TEEP QueryRequest / QueryResponse / Update exchange, helping client implementations validate COSE- and CBOR-encoded payload handling without talking to production infrastructure.
+`tam-over-http` is a lightweight Trusted Application Manager (TAM) server used to exercise WebAssembly-based TEEP (Trusted Execution Environment Provisioning) clients. It serves deterministic responses that model the TEEP QueryRequest / QueryResponse / Update exchange, helping client implementations validate COSE- and CBOR-encoded payload handling without talking to production infrastructure.
+
+```mermaid
+flowchart LR
+    TAM -- install WasmApp --> TEEPAgent[TEEP Agent]
+
+    subgraph TEE
+    TEEPAgent -- run WasmApp --> WasmRuntime[WasmRuntime]
+    end
+```
 
 ## Quick Start
 
@@ -58,17 +67,22 @@ The container bundles the embedded CBOR fixtures under `/app/resources` but no a
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Client as TEEP Client
-    participant TAM as tam-over-http
+    participant Client as TEEP Agent
+    participant TAM as TAM over HTTP
     participant Verifier as Verifier Server
 
-    Client->>TAM: QueryRequest
-    TAM-->>Client: QueryRequest / Update artefacts
-    Client->>TAM: QueryResponse (attestation payload)
-    TAM->>Verifier: Submit attestation payload
-    Verifier-->>TAM: Verifier response (status, JWT)
-    TAM-->>Client: Update (when status == complete)
+    Client->>TAM: (Create session)
+    TAM-->>Client: QueryRequest
+    Client->>TAM: QueryResponse (Evidence)
+    TAM->>Verifier: Submit Evidence
+    Verifier-->>TAM: Attestation Results with EAR JSON
+    TAM-->>Client: Update
+    Client->>Client: Process SUIT Manifest
+    Client->>TAM: Success
+    TAM-->>Client: (Terminate)
 ```
+
+For more detailed design, [External Design](./doc/EXTERNAL_DESIGN.md) and Internal Design (WIP) documents help you to understand our implementation.
 
 ## Repository Layout
 
