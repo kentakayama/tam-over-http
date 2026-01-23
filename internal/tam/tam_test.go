@@ -271,3 +271,68 @@ func TestTAMResolveTEEPMessage_AgentUpdate_OK(t *testing.T) {
 	require.Nil(t, err)
 	assert.Equal(t, TEEPTypeUpdate, outgoingUpdate.Type)
 }
+
+func TestTAMResolveTEEPMessage_TokenConsumed(t *testing.T) {
+	logger := log.Default()
+	verifier := MockEATVerifier{}
+	tam, err := NewTAM(false, &verifier, logger)
+	if err != nil {
+		t.Fatalf("NewTAM error: %v", err)
+	}
+	if err = tam.InitWithPath(":memory:"); err != nil {
+		t.Fatalf("TAM Init error: %v", err)
+	}
+	if err = tam.EnsureDefaultTCDeveloper(true); err != nil {
+		t.Fatalf("TAM EnsureDefaultTCDeveloper error: %v", err)
+	}
+	if err = tam.EnsureDefaultTEEPAgent(); err != nil {
+		t.Fatalf("TAM EnsureDefaultTEEPAgent error: %v", err)
+	}
+
+	kid, err := tam.assets.tamKey.Thumbprint(crypto.SHA256)
+	fmt.Printf("TAM's kid: %s\n", hex.EncodeToString(kid))
+	require.Nil(t, err)
+	require.NotNil(t, kid)
+
+	// get TEEP Agent's key
+	agentKID := []byte{
+		0xd0, 0x8d, 0x16, 0x02, 0xca, 0xa2, 0xd0, 0xae, 0x0a, 0xde, 0x02, 0x66, 0x62, 0x92, 0xb1, 0x4c,
+		0xef, 0xd0, 0xd0, 0x28, 0x2a, 0x15, 0x3f, 0x77, 0x73, 0xac, 0xf6, 0xfd, 0xd0, 0xc0, 0xd3, 0x78,
+	}
+	agentKey, err := tam.getTEEPAgentKey(agentKID)
+	require.Nil(t, err)
+
+	// TEST#1: process empty body to return QueryRequest with Token
+	responseEmpty, err := tam.ResolveTEEPMessage(nil)
+	require.Nil(t, err)
+
+	var outgoingQueryRequestWithToken TEEPMessage
+	err = outgoingQueryRequestWithToken.COSESign1Verify(tam.assets.tamKey, responseEmpty)
+	require.Nil(t, err)
+	assert.Equal(t, TEEPTypeQueryRequest, outgoingQueryRequestWithToken.Type)
+
+	// TEST#2: generate TEEP Agent's QueryResponse with Token
+	assert.Nil(t, outgoingQueryRequestWithToken.Options.Challenge)
+	require.NotNil(t, outgoingQueryRequestWithToken.Options.Token)
+	assert.Equal(t, true, outgoingQueryRequestWithToken.DataItemRequested.TCListRequested())
+	queryResponse := TEEPMessage{
+		Type: TEEPTypeQueryResponse,
+		Options: TEEPOptions{
+			Token: outgoingQueryRequestWithToken.Options.Token,
+		},
+	}
+	signedQueryResponse, err := queryResponse.COSESign1Sign(agentKey)
+	require.Nil(t, err)
+
+	// TEST#3: process QueryRequest with Token to return Update
+	firstEmpty, err := tam.ResolveTEEPMessage(signedQueryResponse)
+	require.Nil(t, err)
+	assert.Nil(t, firstEmpty)
+
+	// TEST#4: process the same QueryRequest to return error
+	// since the handler tries to process the attestation-payload (Evidence / AttestationResults),
+	// the error will be ErrAttestationPayloadNotFound
+	secondEmpty, err := tam.ResolveTEEPMessage(signedQueryResponse)
+	require.Equal(t, ErrAttestationPayloadNotFound, err)
+	assert.Nil(t, secondEmpty)
+}

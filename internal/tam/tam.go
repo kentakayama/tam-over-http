@@ -186,12 +186,26 @@ func (t *TAM) ResolveTEEPMessage(body []byte) ([]byte, error) {
 		if agentKID == nil {
 			return nil, ErrNotAuthenticated
 		}
-		t.logger.Printf("do nothing for teep-success")
+		if sentMessage == nil {
+			return nil, ErrNotAResponse
+		}
+
+		// TODO: process SUIT_Report
+
+		response = nil
+
 	case TEEPTypeError:
 		if agentKID == nil {
 			return nil, ErrNotAuthenticated
 		}
-		t.logger.Printf("do nothing for teep-error")
+		if sentMessage == nil {
+			return nil, ErrNotAResponse
+		}
+
+		// TODO: process SUIT_Report
+
+		response = nil
+
 	default:
 		// should not reach here, because the corresponding sent message was valid
 		return nil, ErrNotSupported
@@ -429,17 +443,12 @@ func (t *TAM) saveSentQueryRequest(sending *TEEPMessage, agentKID []byte) error 
 		return ErrFatal
 	}
 
+	sentQueryRequestRepo := sqlite.NewSentQueryRequestMessageRepository(t.db)
 	q := model.SentQueryRequestMessage{
 		AgentID:              nil, // TODO, search Agent with KID
 		AttestationRequested: sending.DataItemRequested.AttestationRequested(),
 		TCListRequested:      sending.DataItemRequested.TCListRequested(),
 	}
-
-	sentQueryRequestRepo := sqlite.NewSentQueryRequestMessageRepository(t.db)
-	if sentQueryRequestRepo == nil {
-		return ErrFatal
-	}
-
 	if sending.Options.Token != nil {
 		if _, err := sentQueryRequestRepo.CreateWithToken(t.ctx, sending.Options.Token, &q); err != nil {
 			return ErrFatal
@@ -538,16 +547,19 @@ func (t *TAM) generateToken() []byte {
 }
 
 // search sent TEEP message by the TAM itself
-// returns the TEEPMessage, otherwise the error is set
+// returns the TEEPMessage, otherwise nil is returned
+// (token is already consumed, token is not found, no message is bound to the token, ...)
 func (t *TAM) searchSentMessageWithToken(token []byte) *TEEPMessage {
 	if token == nil {
 		return nil
 	}
-
-	sentQueryRequestRepo := sqlite.NewSentQueryRequestMessageRepository(t.db)
-	if sentQueryRequestRepo == nil {
+	tokenRepo := sqlite.NewTokenRepository(t.db)
+	if err := tokenRepo.MarkConsumed(t.ctx, token); err != nil {
+		t.logger.Printf("failed to consume token %s: %v", hex.EncodeToString(token), err)
 		return nil
 	}
+
+	sentQueryRequestRepo := sqlite.NewSentQueryRequestMessageRepository(t.db)
 	sentQueryRequest, err := sentQueryRequestRepo.FindByToken(t.ctx, token)
 	if err != nil {
 		return nil

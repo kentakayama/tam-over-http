@@ -60,16 +60,23 @@ func (r *ChallengeRepository) FindByChallenge(ctx context.Context, challengeByte
 	return &c, nil
 }
 
-// MarkConsumed marks a challenge as consumed.
+// MarkConsumed marks a challenge as consumed if it is not already consumed.
 func (r *ChallengeRepository) MarkConsumed(ctx context.Context, id int64) error {
 	const q = `
 		UPDATE challenges
 		SET consumed = 1
-		WHERE id = ?
+		WHERE id = ? AND consumed = 0
 	`
-	_, err := r.db.ExecContext(ctx, q, id)
+	res, err := r.db.ExecContext(ctx, q, id)
 	if err != nil {
 		return fmt.Errorf("update challenge: %w", err)
+	}
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("get rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return fmt.Errorf("challenge already consumed or not found")
 	}
 	return nil
 }
