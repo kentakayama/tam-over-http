@@ -25,6 +25,7 @@ end
 
 Method | Endpoint | Requester | Input | Output | Reference
 --|--|--|--|--|--
-POST | `/tam` | TEEP Agent | empty<br/>QueryResponse<br/>Success<br/>Error | 200: QueryRequest<br/>200: Update / QueryResponse<br/>204: empty<br/>204: empty | [TEEP_MESSAGE_HANDLE](TEEP_MESSAGE_HANDLE.md)
-POST | `/api/addManigest` | TC Developer | SUIT Manifest | 200: OK
-GET | `/api/getAgents` | Device Manager | `{TBD}` | 200: `{TBD}`
+POST | `/tam` | TEEP Agent | empty<br/>QueryResponse<br/>Success<br/>Error | 200: QueryRequest<br/>200: Update / QueryRequest<br/>204: empty<br/>204: empty | [TEEP_MESSAGE_HANDLE](TEEP_MESSAGE_HANDLE.md)
+POST | `/tc-developer/addManifest` | TC Developer | SUIT Manifest | 200: OK
+GET | `/dev-admin/getAgents` | Device Manager Admin | `{TBD}` | 200: `{TBD}`
+GET | `/dev-admin/getManifests` | Device Manager Admin | `{TBD}` | 200: `{TBD}`
