@@ -8,7 +8,7 @@ title: Web API
 flowchart TB
 
 TCDeveloper([TC Developer]) -- POST SUIT Manifest --> HTTPServer
-DeviceManager([Device Manager]) -- GET AgentStatus<br/>GET Manifests --> HTTPServer
+DeviceManager([Device Manager]) -- GET AgentStatus<br/>GET SUIT Manifests --> HTTPServer
 TEEPAgent([TEEP Agent]) -- POST TEEP Message --> HTTPServer
 
 subgraph TAM Server
