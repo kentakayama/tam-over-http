@@ -86,6 +86,7 @@ func (r *AgentStatusRepository) AddForAgent(ctx context.Context, agentKID []byte
 // For each trusted_component_id, only the latest (by created_at) holding is returned.
 // If a device is associated with the agent, its UEID is included in the response.
 func (r *AgentStatusRepository) GetAgentStatus(ctx context.Context, agentKID []byte) (*model.AgentStatus, error) {
+	// TODO: check the requesters' authorization to view the agent status.
 	const q = `
 		SELECT a.id, a.kid, a.created_at,
 		       sm.trusted_component_id, sm.sequence_number,
@@ -130,10 +131,10 @@ func (r *AgentStatusRepository) GetAgentStatus(ctx context.Context, agentKID []b
 
 		if agentStatus == nil {
 			agentStatus = &model.AgentStatus{
-				AgentKID:     kid,
-				DeviceUEID:   ueid,
-				SuitManifest: []model.SuitManifestOverview{},
-				UpdatedAt:    createdAt,
+				AgentKID:      kid,
+				DeviceUEID:    ueid,
+				SuitManifests: []model.SuitManifestOverview{},
+				UpdatedAt:     createdAt,
 			}
 		}
 
@@ -154,7 +155,7 @@ func (r *AgentStatusRepository) GetAgentStatus(ctx context.Context, agentKID []b
 		return nil, nil
 	}
 
-	agentStatus.SuitManifest = manifests
+	agentStatus.SuitManifests = manifests
 	return agentStatus, nil
 }
 

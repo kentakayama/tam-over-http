@@ -141,7 +141,7 @@ func (r *SentUpdateMessageRepository) FindWithManifestsByToken(ctx context.Conte
 	const q = `
 		SELECT t.id, t.token, t.created_at, t.expired_at, t.consumed,
 		       sum.id, sum.agent_id, sum.token_id, sum.created_at,
-		       sm.id, sm.manifest, sm.manifest_signing_key_id, sm.trusted_component_id, sm.sequence_number, sm.created_at
+		       sm.id, sm.manifest, sm.signing_key_id, sm.trusted_component_id, sm.sequence_number, sm.created_at
 		FROM tokens t
 		JOIN sent_update_messages sum ON t.id = sum.token_id
 		LEFT JOIN sent_manifests_in_update_messages smium ON sum.id = smium.sent_update_id

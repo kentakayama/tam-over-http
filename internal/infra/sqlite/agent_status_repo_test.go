@@ -109,11 +109,11 @@ func TestAgenStatus_AddHoldingManifest_GetStatus(t *testing.T) {
 	if !bytes.Equal(ueid, agentStatus1.DeviceUEID) {
 		t.Fatalf("expected device ueid %s, got %s", hex.EncodeToString(ueid), hex.EncodeToString(agentStatus1.DeviceUEID))
 	}
-	if len(agentStatus1.SuitManifest) != 1 {
-		t.Fatalf("expected 1 active holding, got %d", len(agentStatus1.SuitManifest))
+	if len(agentStatus1.SuitManifests) != 1 {
+		t.Fatalf("expected 1 active holding, got %d", len(agentStatus1.SuitManifests))
 	}
-	if agentStatus1.SuitManifest[0].SequenceNumber != uint64(1) {
-		t.Fatalf("expected suit manifest seq %d got %d", 1, agentStatus1.SuitManifest[0].SequenceNumber)
+	if agentStatus1.SuitManifests[0].SequenceNumber != uint64(1) {
+		t.Fatalf("expected suit manifest seq %d got %d", 1, agentStatus1.SuitManifests[0].SequenceNumber)
 	}
 
 	// add second manifest (same trusted component) -> first should be logically deleted
@@ -125,11 +125,11 @@ func TestAgenStatus_AddHoldingManifest_GetStatus(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetAgentStatus error: %v", err)
 	}
-	if len(agentStatus2.SuitManifest) != 1 {
-		t.Fatalf("expected 1 active holding, got %d", len(agentStatus1.SuitManifest))
+	if len(agentStatus2.SuitManifests) != 1 {
+		t.Fatalf("expected 1 active holding, got %d", len(agentStatus1.SuitManifests))
 	}
-	if agentStatus2.SuitManifest[0].SequenceNumber != uint64(2) {
-		t.Fatalf("expected suit manifest seq %d got %d", 1, agentStatus2.SuitManifest[0].SequenceNumber)
+	if agentStatus2.SuitManifests[0].SequenceNumber != uint64(2) {
+		t.Fatalf("expected suit manifest seq %d got %d", 1, agentStatus2.SuitManifests[0].SequenceNumber)
 	}
 
 	// add second manifest (same trusted component) -> first should be logically deleted
@@ -146,13 +146,13 @@ func TestAgenStatus_AddHoldingManifest_GetStatus(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetAgentStatus error: %v", err)
 	}
-	if len(agentStatus3.SuitManifest) != 2 {
-		t.Fatalf("expected 2 active holding, got %d", len(agentStatus3.SuitManifest))
+	if len(agentStatus3.SuitManifests) != 2 {
+		t.Fatalf("expected 2 active holding, got %d", len(agentStatus3.SuitManifests))
 	}
-	if agentStatus3.SuitManifest[0].SequenceNumber != uint64(1) {
-		t.Fatalf("expected suit manifest seq %d got %d", 1, agentStatus3.SuitManifest[0].SequenceNumber)
+	if agentStatus3.SuitManifests[0].SequenceNumber != uint64(1) {
+		t.Fatalf("expected suit manifest seq %d got %d", 1, agentStatus3.SuitManifests[0].SequenceNumber)
 	}
-	if agentStatus3.SuitManifest[1].SequenceNumber != uint64(2) {
-		t.Fatalf("expected suit manifest seq %d got %d", 2, agentStatus3.SuitManifest[1].SequenceNumber)
+	if agentStatus3.SuitManifests[1].SequenceNumber != uint64(2) {
+		t.Fatalf("expected suit manifest seq %d got %d", 2, agentStatus3.SuitManifests[1].SequenceNumber)
 	}
 }

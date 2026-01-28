@@ -13,24 +13,33 @@ import (
 	"github.com/kentakayama/tam-over-http/internal/infra/sqlite"
 )
 
-// to be returned in /dev-admin/getAgents
-type AgentStatusList []AgentStatus
+func (t *TAM) GetAgentStatus(agentKID []byte) (*model.AgentStatus, error) {
+	arepo := sqlite.NewAgentStatusRepository(t.db)
 
-type AgentStatus struct {
-	TrustedComponentID []byte
-
-	Attributes AgentAttributes            `cbor:"attributes"`
-	Manifests  model.SuitManifestOverview `cbor:"wapp_list"`
-}
-
-type AgentAttributes struct {
-	UEID []byte `cbor:"256,keyasint"`
-}
-
-func (t *TAM) getAgentStatus(entityID int64) ([]AgentStatus, error) {
-	entityRepo := sqlite.NewEntityRepository(t.db)
-	entity, err := entityRepo.FindByID(t.ctx, entityID)
+	agentStatus, err := arepo.GetAgentStatus(t.ctx, agentKID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to search entity key ID: %v", err)
+		return nil, fmt.Errorf("failed to list agent statuses: %w", err)
 	}
+
+	return agentStatus, nil
+}
+
+func (t *TAM) GetAgentStatuses() ([]model.AgentStatus, error) {
+	arepo := sqlite.NewAgentRepository(t.db)
+	agents, err := arepo.GetAll(t.ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list agents: %w", err)
+	}
+
+	agentStatuses := make([]model.AgentStatus, 0, len(agents))
+	astatusRepo := sqlite.NewAgentStatusRepository(t.db)
+	for _, agent := range agents {
+		agentStatus, err := astatusRepo.GetAgentStatus(t.ctx, agent.KID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get agent status for agent KID %x: %w", agent.KID, err)
+		}
+		agentStatuses = append(agentStatuses, *agentStatus)
+	}
+
+	return agentStatuses, nil
 }

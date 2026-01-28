@@ -56,6 +56,7 @@ func TestSentUpdateMessageRepository_FindWithManifestsByToken(t *testing.T) {
 	// Create a SUIT manifest
 	manifest := &model.SuitManifest{
 		Manifest:           []byte("dummy manifest"),
+		Digest:             []byte("dummy digest"),
 		SigningKeyID:       1,
 		TrustedComponentID: []byte("tc123"),
 		SequenceNumber:     1,

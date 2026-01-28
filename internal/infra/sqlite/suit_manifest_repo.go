@@ -27,7 +27,7 @@ func NewSuitManifestRepository(db *sql.DB) *SuitManifestRepository {
 
 func (r *SuitManifestRepository) FindByID(ctx context.Context, id int64) (*model.SuitManifest, error) {
 	const q = `
-		SELECT id, manifest, manifest_signing_key_id, trusted_component_id, sequence_number, created_at
+		SELECT id, manifest, signing_key_id, trusted_component_id, sequence_number, created_at
 		FROM suit_manifests
 		WHERE id = ?
 		ORDER BY sequence_number DESC
@@ -47,7 +47,7 @@ func (r *SuitManifestRepository) FindByID(ctx context.Context, id int64) (*model
 // FindLatestByTrustedComponentID returns the manifest with the largest sequence_number for a trusted component.
 func (r *SuitManifestRepository) FindLatestByTrustedComponentID(ctx context.Context, trustedComponentID []byte) (*model.SuitManifest, error) {
 	const q = `
-		SELECT id, manifest, manifest_signing_key_id, trusted_component_id, sequence_number, created_at
+		SELECT id, manifest, signing_key_id, trusted_component_id, sequence_number, created_at
 		FROM suit_manifests
 		WHERE trusted_component_id = ?
 		ORDER BY sequence_number DESC

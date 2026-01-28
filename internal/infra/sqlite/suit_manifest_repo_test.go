@@ -52,6 +52,7 @@ func TestSuitManifest_CreateFindLatest_OK(t *testing.T) {
 
 	m1 := &model.SuitManifest{
 		Manifest:           []byte("mfst-1"),
+		Digest:             []byte("digest-1"),
 		SigningKeyID:       keyID,
 		TrustedComponentID: trusted,
 		SequenceNumber:     1,
@@ -59,6 +60,7 @@ func TestSuitManifest_CreateFindLatest_OK(t *testing.T) {
 	}
 	m2 := &model.SuitManifest{
 		Manifest:           []byte("mfst-2"),
+		Digest:             []byte("digest-2"),
 		SigningKeyID:       keyID,
 		TrustedComponentID: trusted,
 		SequenceNumber:     2,

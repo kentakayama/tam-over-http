@@ -21,6 +21,7 @@ type SuitManifest struct {
 
 // SuitManifestOverview represents the digest of SUIT manifest for the TC Developers, Device Admins, ...
 type SuitManifestOverview struct {
-	TrustedComponentID []byte
-	SequenceNumber     uint64
+	_                  struct{} `cbor:",toarray"`
+	TrustedComponentID []byte   `cbor:"0,keyasint"`
+	SequenceNumber     uint64   `cbor:"1,keyasint"`
 }
