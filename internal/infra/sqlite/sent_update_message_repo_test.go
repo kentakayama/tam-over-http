@@ -55,11 +55,11 @@ func TestSentUpdateMessageRepository_FindWithManifestsByToken(t *testing.T) {
 
 	// Create a SUIT manifest
 	manifest := &model.SuitManifest{
-		Manifest:             []byte("dummy manifest"),
-		ManifestSigningKeyID: 1,
-		TrustedComponentID:   []byte("tc123"),
-		SequenceNumber:       1,
-		CreatedAt:            time.Now(),
+		Manifest:           []byte("dummy manifest"),
+		SigningKeyID:       1,
+		TrustedComponentID: []byte("tc123"),
+		SequenceNumber:     1,
+		CreatedAt:          time.Now(),
 	}
 	manifestID, err := suitManifestRepo.Create(ctx, manifest)
 	if err != nil {

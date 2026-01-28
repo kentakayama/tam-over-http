@@ -178,7 +178,7 @@ func (h *handler) addTCManifest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.tam.SetEnvelope(untaggedEnvelopeBytes, envelope.AuthenticationWrapper.Value.AuthenticationBlocks[0].KID, encodedComponentID, manifest.Value.ManifestSequenceNumber); err != nil {
+	if err := h.tam.SetEnvelope(untaggedEnvelopeBytes, envelope.AuthenticationWrapper.Value.DigestBstr, envelope.AuthenticationWrapper.Value.AuthenticationBlocks[0].KID, encodedComponentID, manifest.Value.ManifestSequenceNumber); err != nil {
 		h.logger.Printf("failed to SetEnvelope: %v", err)
 		http.Error(w, "failed to parse SUIT Manifest", http.StatusBadRequest)
 		return

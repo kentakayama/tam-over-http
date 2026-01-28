@@ -100,29 +100,44 @@ func createSchema(ctx context.Context, db *sql.DB) error {
 	CREATE TABLE IF NOT EXISTS suit_manifests (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		manifest BLOB NOT NULL,
-		manifest_signing_key_id INTEGER NOT NULL,
+		digest BLOB NOT NULL,
+		signing_key_id INTEGER NOT NULL,
 		trusted_component_id BLOB NOT NULL,
 		sequence_number INTEGER NOT NULL,
 		created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		-- table constraints (placed after column definitions for compatibility)
-		FOREIGN KEY (manifest_signing_key_id) REFERENCES manifest_signing_keys(id) ON DELETE CASCADE
+		FOREIGN KEY (signing_key_id) REFERENCES manifest_signing_keys(id) ON DELETE CASCADE
 	);
 
 	-- Create index on trusted_component_id for faster lookups
+	CREATE INDEX IF NOT EXISTS idx_suit_manifests_digest ON suit_manifests(digest);
 	CREATE INDEX IF NOT EXISTS idx_suit_manifests_trusted_component_id ON suit_manifests(trusted_component_id);
 	CREATE INDEX IF NOT EXISTS idx_suit_manifests_sequence_number ON suit_manifests(sequence_number);
 
 	-- Composite index to accelerate "find latest by trusted_component_id ORDER BY sequence_number DESC"
 	CREATE INDEX IF NOT EXISTS idx_suit_manifests_tc_seq ON suit_manifests(trusted_component_id, sequence_number);
 
+	-- Devices table
+	CREATE TABLE IF NOT EXISTS devices (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		ueid BLOB UNIQUE NOT NULL,
+		created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		admin_id INTEGER,
+		-- table constraints (placed after column definitions for compatibility)
+		FOREIGN KEY (admin_id) REFERENCES entities(id) ON DELETE CASCADE
+	);
+
 	-- Agents table
 	CREATE TABLE IF NOT EXISTS agents (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		kid BLOB UNIQUE NOT NULL,
+		device_id INTEGER,
 		public_key BLOB NOT NULL,
 		created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		expired_at TIMESTAMP NOT NULL,
-		revoked_at INTEGER
+		revoked_at INTEGER,
+		-- table constraints (placed after column definitions for compatibility)
+		FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE
 	);
 
 	-- Create index on kid for faster lookups
@@ -192,7 +207,7 @@ func createSchema(ctx context.Context, db *sql.DB) error {
 	CREATE INDEX IF NOT EXISTS idx_sent_qr_challenge_id ON sent_query_request_messages(challenge_id);
 
 	-- Index for manifest signing key lookup
-	CREATE INDEX IF NOT EXISTS idx_suit_manifests_signing_key_id ON suit_manifests(manifest_signing_key_id);
+	CREATE INDEX IF NOT EXISTS idx_suit_manifests_signing_key_id ON suit_manifests(signing_key_id);
 
 	-- Sent Updates table
 	CREATE TABLE IF NOT EXISTS sent_update_messages (

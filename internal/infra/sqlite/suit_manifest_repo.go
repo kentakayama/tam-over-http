@@ -35,7 +35,7 @@ func (r *SuitManifestRepository) FindByID(ctx context.Context, id int64) (*model
 	`
 	row := r.db.QueryRowContext(ctx, q, id)
 	var m model.SuitManifest
-	if err := row.Scan(&m.ID, &m.Manifest, &m.ManifestSigningKeyID, &m.TrustedComponentID, &m.SequenceNumber, &m.CreatedAt); err != nil {
+	if err := row.Scan(&m.ID, &m.Manifest, &m.SigningKeyID, &m.TrustedComponentID, &m.SequenceNumber, &m.CreatedAt); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
@@ -55,7 +55,7 @@ func (r *SuitManifestRepository) FindLatestByTrustedComponentID(ctx context.Cont
 	`
 	row := r.db.QueryRowContext(ctx, q, trustedComponentID)
 	var m model.SuitManifest
-	if err := row.Scan(&m.ID, &m.Manifest, &m.ManifestSigningKeyID, &m.TrustedComponentID, &m.SequenceNumber, &m.CreatedAt); err != nil {
+	if err := row.Scan(&m.ID, &m.Manifest, &m.SigningKeyID, &m.TrustedComponentID, &m.SequenceNumber, &m.CreatedAt); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
@@ -70,10 +70,10 @@ func (r *SuitManifestRepository) Create(ctx context.Context, m *model.SuitManife
 		return 0, errors.New("sequence-number exceeds the limit")
 	}
 	const q = `
-		INSERT INTO suit_manifests (manifest, manifest_signing_key_id, trusted_component_id, sequence_number, created_at)
-		VALUES (?, ?, ?, ?, ?)
+		INSERT INTO suit_manifests (manifest, digest, signing_key_id, trusted_component_id, sequence_number, created_at)
+		VALUES (?, ?, ?, ?, ?, ?)
 	`
-	res, err := r.db.ExecContext(ctx, q, m.Manifest, m.ManifestSigningKeyID, m.TrustedComponentID, m.SequenceNumber, m.CreatedAt)
+	res, err := r.db.ExecContext(ctx, q, m.Manifest, m.Digest, m.SigningKeyID, m.TrustedComponentID, m.SequenceNumber, m.CreatedAt)
 	if err != nil {
 		return 0, err
 	}

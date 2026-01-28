@@ -905,10 +905,10 @@ func (t *TAM) EnsureDefaultEntity(withManifest bool) error {
 			0x4d, 0x48, 0x65, 0x6c, 0x6c, 0x6f, 0x2c, 0x20, 0x57, 0x6f, 0x72, 0x6c, 0x64, 0x21, // "Hello, World!"
 		}
 		defaultManifest0 := &model.SuitManifest{
-			Manifest:             taggedManifest0,
-			ManifestSigningKeyID: devKeyID,
-			TrustedComponentID:   tcID,
-			SequenceNumber:       0,
+			Manifest:           taggedManifest0,
+			SigningKeyID:       devKeyID,
+			TrustedComponentID: tcID,
+			SequenceNumber:     0,
 		}
 		manifestRepo := sqlite.NewSuitManifestRepository(t.db)
 		m, err := manifestRepo.FindLatestByTrustedComponentID(t.ctx, tcID)
@@ -957,10 +957,10 @@ func (t *TAM) EnsureDefaultEntity(withManifest bool) error {
 			0x20, 0x57, 0x6f, 0x72, 0x6c, 0x64, 0x21,
 		}
 		defaultManifest1 := &model.SuitManifest{
-			Manifest:             untaggedManifest1,
-			ManifestSigningKeyID: devKeyID,
-			TrustedComponentID:   tcID,
-			SequenceNumber:       1,
+			Manifest:           untaggedManifest1,
+			SigningKeyID:       devKeyID,
+			TrustedComponentID: tcID,
+			SequenceNumber:     1,
 		}
 		m, err = manifestRepo.FindLatestByTrustedComponentID(t.ctx, tcID)
 		if err != nil {

@@ -10,10 +10,17 @@ import "time"
 
 // SuitManifest represents a SUIT manifest stored in DB.
 type SuitManifest struct {
-	ID                   int64
-	Manifest             []byte
-	ManifestSigningKeyID int64
-	TrustedComponentID   []byte
-	SequenceNumber       uint64
-	CreatedAt            time.Time
+	ID                 int64
+	Manifest           []byte
+	Digest             []byte // encoded SUIT_Digest, i.e. [-16, h'deadbeef...']
+	SigningKeyID       int64
+	TrustedComponentID []byte
+	SequenceNumber     uint64
+	CreatedAt          time.Time
+}
+
+// SuitManifestOverview represents the digest of SUIT manifest for the TC Developers, Device Admins, ...
+type SuitManifestOverview struct {
+	TrustedComponentID []byte
+	SequenceNumber     uint64
 }

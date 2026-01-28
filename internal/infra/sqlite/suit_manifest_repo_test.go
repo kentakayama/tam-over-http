@@ -51,18 +51,18 @@ func TestSuitManifest_CreateFindLatest_OK(t *testing.T) {
 	trusted := []byte("tc-1")
 
 	m1 := &model.SuitManifest{
-		Manifest:             []byte("mfst-1"),
-		ManifestSigningKeyID: keyID,
-		TrustedComponentID:   trusted,
-		SequenceNumber:       1,
-		CreatedAt:            now,
+		Manifest:           []byte("mfst-1"),
+		SigningKeyID:       keyID,
+		TrustedComponentID: trusted,
+		SequenceNumber:     1,
+		CreatedAt:          now,
 	}
 	m2 := &model.SuitManifest{
-		Manifest:             []byte("mfst-2"),
-		ManifestSigningKeyID: keyID,
-		TrustedComponentID:   trusted,
-		SequenceNumber:       2,
-		CreatedAt:            now.Add(1 * time.Minute),
+		Manifest:           []byte("mfst-2"),
+		SigningKeyID:       keyID,
+		TrustedComponentID: trusted,
+		SequenceNumber:     2,
+		CreatedAt:          now.Add(1 * time.Minute),
 	}
 
 	id1, err := repo.Create(ctx, m1)
