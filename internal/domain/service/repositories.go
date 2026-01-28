@@ -33,11 +33,11 @@ type AgentHoldingSuitManifestRepository interface {
 	ListActiveByAgent(ctx context.Context, agentID int64) ([]*model.AgentHoldingSuitManifest, error)
 }
 
-// TCDeveloperRepository defines the interface for TC Developer persistence.
-type TCDeveloperRepository interface {
-	Create(ctx context.Context, dev *model.TCDeveloper) (int64, error)
-	FindByID(ctx context.Context, id int64) (*model.TCDeveloper, error)
-	FindByName(ctx context.Context, name string) (*model.TCDeveloper, error)
+// EntityRepository defines the interface for TC Developer persistence.
+type EntityRepository interface {
+	Create(ctx context.Context, dev *model.Entity) (int64, error)
+	FindByID(ctx context.Context, id int64) (*model.Entity, error)
+	FindByName(ctx context.Context, name string) (*model.Entity, error)
 }
 
 // ManifestSigningKeyRepository defines the interface for manifest signing key persistence.

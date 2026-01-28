@@ -145,7 +145,7 @@ func (h *handler) addTCManifest(w http.ResponseWriter, r *http.Request) {
 	// get only the untagged one, because TEEP Protocol transfers untagged ones
 	_, untaggedEnvelopeBytes := envelope.SkipTag(body)
 
-	key, err := h.tam.GetTCDeveloperKey(envelope.AuthenticationWrapper.Value.AuthenticationBlocks[0].KID)
+	key, err := h.tam.GetEntityKey(envelope.AuthenticationWrapper.Value.AuthenticationBlocks[0].KID)
 	if err != nil || key == nil {
 		h.logger.Printf("the manifest signing key is not trusted by the TAM: %v", err)
 		http.Error(w, "failed to parse SUIT Manifest", http.StatusBadRequest)

@@ -67,25 +67,29 @@ func createSchema(ctx context.Context, db *sql.DB) error {
 	PRAGMA foreign_keys = ON;
 
 	-- TC Developers table
-	CREATE TABLE IF NOT EXISTS tc_developers (
+	CREATE TABLE IF NOT EXISTS entities (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		name TEXT NOT NULL,
+		is_tam_admin INTEGER DEFAULT 0,
+		is_tc_developer INTEGER DEFAULT 0,
+		is_device_admin INTEGER DEFAULT 0,
+		-- TODO: credential
 		created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 	);
 
 	-- Create index on name for faster lookups
-	CREATE INDEX IF NOT EXISTS idx_tc_developers_name ON tc_developers(name);
+	CREATE INDEX IF NOT EXISTS idx_entity_name ON entities(name);
 
 	-- Manifest Signing Keys for TC Developers table
 	CREATE TABLE IF NOT EXISTS manifest_signing_keys (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		kid BLOB UNIQUE NOT NULL,
-		tc_developer_id INTEGER NOT NULL,
+		entity_id INTEGER NOT NULL,
 		public_key BLOB NOT NULL,
 		created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		expired_at TIMESTAMP NOT NULL,
 		-- table constraints (placed after column definitions for compatibility)
-		FOREIGN KEY (tc_developer_id) REFERENCES tc_developers(id) ON DELETE CASCADE
+		FOREIGN KEY (entity_id) REFERENCES entities(id) ON DELETE CASCADE
 	);
 
 	-- Create index on kid for faster lookups

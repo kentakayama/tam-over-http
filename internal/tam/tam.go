@@ -737,20 +737,43 @@ func (t *TAM) InitWithPath(dbPath string) error {
 	return nil
 }
 
-func (t *TAM) EnsureDefaultTCDeveloper(withManifest bool) error {
+func (t *TAM) EnsureDefaultEntity(withManifest bool) error {
 	// XXX: initialize default entiries only for demo purpose
 
-	// Try to find or create "default" TC Developer
-	devRepo := sqlite.NewTCDeveloperRepository(t.db)
+	// Try to find or create "default" entities
+	entityRepo := sqlite.NewEntityRepository(t.db)
+
+	// add default TAM admin if not exists
+	defaultTAMAdmin := &model.Entity{
+		Name:       "admin@example.com",
+		IsTAMAdmin: true,
+		CreatedAt:  time.Now().UTC(),
+	}
+	var admID int64
+	adm, err := entityRepo.FindByName(t.ctx, defaultTAMAdmin.Name)
+	if err != nil {
+		return fmt.Errorf("failed to find default TAM Admin: %w", err)
+	}
+	if adm != nil {
+		admID = adm.ID
+		// OK, already exists
+	} else {
+		admID, err = entityRepo.Create(t.ctx, defaultTAMAdmin)
+		if err != nil {
+			return fmt.Errorf("failed to create default TAM Admin: %w", err)
+		}
+		t.logger.Printf("Created default TAM Admin with ID: %d", admID)
+	}
 
 	// add default developer if not exists
-	defaultDev := &model.TCDeveloper{
-		Name:      "default",
-		CreatedAt: time.Now().UTC(),
+	defaultDev := &model.Entity{
+		Name:          "developer1@example.com",
+		IsTCDeveloper: true,
+		CreatedAt:     time.Now().UTC(),
 	}
 
 	var devID int64
-	dev, err := devRepo.FindByName(t.ctx, defaultDev.Name)
+	dev, err := entityRepo.FindByName(t.ctx, defaultDev.Name)
 	if err != nil {
 		return fmt.Errorf("failed to find default TC Developer: %w", err)
 	}
@@ -758,7 +781,7 @@ func (t *TAM) EnsureDefaultTCDeveloper(withManifest bool) error {
 		devID = dev.ID
 		// OK, already exists
 	} else {
-		devID, err = devRepo.Create(t.ctx, defaultDev)
+		devID, err = entityRepo.Create(t.ctx, defaultDev)
 		if err != nil {
 			return fmt.Errorf("failed to create default TC Developer: %w", err)
 		}
@@ -795,9 +818,9 @@ func (t *TAM) EnsureDefaultTCDeveloper(withManifest bool) error {
 	}
 
 	defaultDevKey := &model.ManifestSigningKey{
-		KID:           kid,
-		TCDeveloperID: devID,
-		PublicKey:     encodedKey,
+		KID:       kid,
+		EntityID:  devID,
+		PublicKey: encodedKey,
 	}
 	keyRepo := sqlite.NewManifestSigningKeyRepository(t.db)
 

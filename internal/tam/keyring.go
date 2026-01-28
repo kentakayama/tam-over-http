@@ -98,7 +98,7 @@ func (t *TAM) revokeTEEPAgentKey(kid []byte) error {
 }
 
 // may accessed from outside the TAM, such as management API handler
-func (t *TAM) GetTCDeveloperKey(kid []byte) (*cose.Key, error) {
+func (t *TAM) GetEntityKey(kid []byte) (*cose.Key, error) {
 	if len(kid) != 32 {
 		return nil, errors.New("invalid key length (expected: 32)")
 	}

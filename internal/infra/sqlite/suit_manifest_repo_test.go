@@ -25,9 +25,9 @@ func TestSuitManifest_CreateFindLatest_OK(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Second)
 
 	// Create TC Developer
-	devRepo := NewTCDeveloperRepository(db)
-	dev := &model.TCDeveloper{Name: "Test Corp", CreatedAt: now}
-	devID, err := devRepo.Create(ctx, dev)
+	entityRepo := NewEntityRepository(db)
+	dev := &model.Entity{Name: "Test Corp", IsTCDeveloper: true, CreatedAt: now}
+	devID, err := entityRepo.Create(ctx, dev)
 	if err != nil {
 		t.Fatalf("Create developer error: %v", err)
 	}
@@ -35,11 +35,11 @@ func TestSuitManifest_CreateFindLatest_OK(t *testing.T) {
 	// Create manifest signing key
 	keyRepo := NewManifestSigningKeyRepository(db)
 	key := &model.ManifestSigningKey{
-		KID:           []byte("key-1"),
-		TCDeveloperID: devID,
-		PublicKey:     []byte("pub-key-1"),
-		CreatedAt:     now,
-		ExpiredAt:     now.Add(1 * time.Hour),
+		KID:       []byte("key-1"),
+		EntityID:  devID,
+		PublicKey: []byte("pub-key-1"),
+		CreatedAt: now,
+		ExpiredAt: now.Add(1 * time.Hour),
 	}
 	keyID, err := keyRepo.Create(ctx, key)
 	if err != nil {

@@ -39,8 +39,8 @@ func TestTAMResolveTEEPMessage_VERAISON_PSA_OK(t *testing.T) {
 	if err = tam.Init(); err != nil {
 		t.Fatalf("TAM Init error: %v", err)
 	}
-	if err = tam.EnsureDefaultTCDeveloper(); err != nil {
-		t.Fatalf("TAM EnsureDefaultTCDeveloper error: %v", err)
+	if err = tam.EnsureDefaultEntity(); err != nil {
+		t.Fatalf("TAM EnsureDefaultEntity error: %v", err)
 	}
 	if err = tam.EnsureDefaultTEEPAgent(); err != nil {
 		t.Fatalf("TAM EnsureDefaultTEEPAgent error: %v", err)
@@ -93,8 +93,8 @@ func TestTAMResolveTEEPMessage_VERAISON_EAT_OK(t *testing.T) {
 	if err = tam.Init(); err != nil {
 		t.Fatalf("TAM Init error: %v", err)
 	}
-	if err = tam.EnsureDefaultTCDeveloper(); err != nil {
-		t.Fatalf("TAM EnsureDefaultTCDeveloper error: %v", err)
+	if err = tam.EnsureDefaultEntity(); err != nil {
+		t.Fatalf("TAM EnsureDefaultEntity error: %v", err)
 	}
 	if err = tam.EnsureDefaultTEEPAgent(); err != nil {
 		t.Fatalf("TAM EnsureDefaultTEEPAgent error: %v", err)

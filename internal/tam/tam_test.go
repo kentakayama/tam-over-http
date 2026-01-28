@@ -92,8 +92,8 @@ func TestTAMResolveTEEPMessage_AgentAttestation_OK(t *testing.T) {
 	if err = tam.InitWithPath(":memory:"); err != nil {
 		t.Fatalf("TAM Init error: %v", err)
 	}
-	if err = tam.EnsureDefaultTCDeveloper(false); err != nil {
-		t.Fatalf("TAM EnsureDefaultTCDeveloper error: %v", err)
+	if err = tam.EnsureDefaultEntity(false); err != nil {
+		t.Fatalf("TAM EnsureDefaultEntity error: %v", err)
 	}
 	// tam.EnsureDefaultTEEPAgent is not required, because EAT can carry the public key of the TEEP Agent
 
@@ -208,8 +208,8 @@ func TestTAMResolveTEEPMessage_AgentUpdate_OK(t *testing.T) {
 	if err = tam.InitWithPath(":memory:"); err != nil {
 		t.Fatalf("TAM Init error: %v", err)
 	}
-	if err = tam.EnsureDefaultTCDeveloper(true); err != nil {
-		t.Fatalf("TAM EnsureDefaultTCDeveloper error: %v", err)
+	if err = tam.EnsureDefaultEntity(true); err != nil {
+		t.Fatalf("TAM EnsureDefaultEntity error: %v", err)
 	}
 	if err = tam.EnsureDefaultTEEPAgent(); err != nil {
 		t.Fatalf("TAM EnsureDefaultTEEPAgent error: %v", err)
@@ -282,8 +282,8 @@ func TestTAMResolveTEEPMessage_TokenConsumed(t *testing.T) {
 	if err = tam.InitWithPath(":memory:"); err != nil {
 		t.Fatalf("TAM Init error: %v", err)
 	}
-	if err = tam.EnsureDefaultTCDeveloper(true); err != nil {
-		t.Fatalf("TAM EnsureDefaultTCDeveloper error: %v", err)
+	if err = tam.EnsureDefaultEntity(true); err != nil {
+		t.Fatalf("TAM EnsureDefaultEntity error: %v", err)
 	}
 	if err = tam.EnsureDefaultTEEPAgent(); err != nil {
 		t.Fatalf("TAM EnsureDefaultTEEPAgent error: %v", err)

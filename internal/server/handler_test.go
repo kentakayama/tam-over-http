@@ -121,8 +121,8 @@ func TestTCHandler_Update_OK(t *testing.T) {
 	if err = tam.InitWithPath(":memory:"); err != nil {
 		t.Fatalf("TAM Init error: %v", err)
 	}
-	if err := tam.EnsureDefaultTCDeveloper(false); err != nil {
-		t.Fatalf("TAM EnsureDefaultTCDeveloper: %v", err)
+	if err := tam.EnsureDefaultEntity(false); err != nil {
+		t.Fatalf("TAM EnsureDefaultEntity: %v", err)
 	}
 
 	h, err := newHandler(tam, log.Default())
