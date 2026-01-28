@@ -40,10 +40,6 @@ func (t *TAM) setTEEPAgentKey(key *cose.Key) error {
 	}
 
 	if existing != nil {
-		// If revoked, restore it
-		if existing.RevokedAt != nil {
-			return arepo.UnrevokeByKID(t.ctx, kid)
-		}
 		// If active, do nothing (key already exists)
 		return nil
 	}

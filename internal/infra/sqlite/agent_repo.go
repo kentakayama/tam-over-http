@@ -127,27 +127,3 @@ func (r *AgentRepository) RevokeByKID(ctx context.Context, kid []byte) error {
 
 	return nil
 }
-
-// UnrevokeByKID restores a revoked agent by setting revoked_at to NULL.
-func (r *AgentRepository) UnrevokeByKID(ctx context.Context, kid []byte) error {
-	const query = `
-		UPDATE agents
-		SET revoked_at = NULL
-		WHERE kid = ? AND revoked_at IS NOT NULL
-	`
-	res, err := r.db.ExecContext(ctx, query, kid)
-	if err != nil {
-		return err
-	}
-
-	rowsAffected, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-
-	if rowsAffected == 0 {
-		return domain.ErrNotFound
-	}
-
-	return nil
-}
