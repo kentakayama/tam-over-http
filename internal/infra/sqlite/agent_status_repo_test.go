@@ -34,7 +34,7 @@ func TestAgenStatus_AddHoldingManifest_GetStatus(t *testing.T) {
 	}
 
 	// Create a device directly and get its ID
-	ueid := []byte("device-123")
+	ueid := append([]byte{0x01}, []byte("building-dev-123")...) // dummy random UEID with 128-bit field and 1 byte prefix
 	res, err := db.ExecContext(ctx, "INSERT INTO devices (ueid, admin_id) VALUES (?, ?)", ueid, deviceAdminID)
 	if err != nil {
 		t.Fatalf("insert device error: %v", err)
