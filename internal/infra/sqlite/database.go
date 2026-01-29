@@ -131,7 +131,7 @@ func createSchema(ctx context.Context, db *sql.DB) error {
 	CREATE TABLE IF NOT EXISTS agents (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		kid BLOB UNIQUE NOT NULL,
-		device_id INTEGER,
+		device_id INTEGER NULLABLE,
 		public_key BLOB NOT NULL,
 		created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		expired_at TIMESTAMP NOT NULL,

@@ -6,6 +6,11 @@
 
 package model
 
+import "time"
+
 type Device struct {
-	UEID []byte
+	ID        int64
+	UEID      []byte
+	AdminID   int64
+	CreatedAt time.Time
 }

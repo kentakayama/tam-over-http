@@ -124,13 +124,17 @@ func (r *AgentRepository) FindByKIDIgnoreRevoked(ctx context.Context, kid []byte
 	return &a, nil
 }
 
-func (r *AgentRepository) Create(ctx context.Context, a *model.Agent) error {
+func (r *AgentRepository) Create(ctx context.Context, a *model.Agent) (int64, error) {
 	const query = `
-		INSERT INTO agents (kid, created_at, expired_at, revoked_at, public_key)
-		VALUES (?, ?, ?, ?, ?)
+		INSERT INTO agents (kid, device_id, created_at, expired_at, revoked_at, public_key)
+		VALUES (?, ?, ?, ?, ?, ?)
 	`
-	_, err := r.db.ExecContext(ctx, query, a.KID, a.CreatedAt, a.ExpiredAt, a.RevokedAt, a.PublicKey)
-	return err
+	result, err := r.db.ExecContext(ctx, query, a.KID, a.DeviceID, a.CreatedAt, a.ExpiredAt, a.RevokedAt, a.PublicKey)
+	if err != nil {
+		return 0, err
+	}
+	id, err := result.LastInsertId()
+	return id, err
 }
 
 // RevokeByKID marks an agent as revoked by setting revoked_at to the current Unix timestamp.

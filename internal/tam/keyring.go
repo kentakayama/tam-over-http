@@ -17,7 +17,7 @@ import (
 	cose "github.com/veraison/go-cose"
 )
 
-func (t *TAM) setTEEPAgentKey(key *cose.Key) error {
+func (t *TAM) setTEEPAgentKey(key *cose.Key, ueid []byte) error {
 	if key == nil {
 		return errors.New("public key is nil")
 	}
@@ -38,22 +38,32 @@ func (t *TAM) setTEEPAgentKey(key *cose.Key) error {
 	if err != nil {
 		return err
 	}
-
 	if existing != nil {
-		// If active, do nothing (key already exists)
 		return nil
+	}
+
+	// look up device
+	var deviceID *int64
+	if ueid != nil {
+		drepo := sqlite.NewDeviceRepository(t.db)
+		device, _ := drepo.FindByUEID(t.ctx, ueid)
+		// ignore errors here
+		if device != nil {
+			deviceID = &device.ID
+		}
 	}
 
 	// Create new agent key
 	now := time.Now().UTC().Truncate(time.Second)
 	agent := &model.Agent{
 		KID:       kid,
+		DeviceID:  deviceID,
 		PublicKey: pubKeyBytes,
 		CreatedAt: now,
 		ExpiredAt: now.Add(365 * 24 * time.Hour), // Valid for 1 year
 	}
 
-	if err := arepo.Create(t.ctx, agent); err != nil {
+	if _, err := arepo.Create(t.ctx, agent); err != nil {
 		return err
 	}
 

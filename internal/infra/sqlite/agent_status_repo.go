@@ -27,7 +27,7 @@ func NewAgentStatusRepository(db *sql.DB) *AgentStatusRepository {
 // AddForAgent logically deletes existing holdings for the same trusted_component and inserts a new holding.
 // This operation is performed in a transaction to ensure atomicity.
 // After successful insertion, it updates the agent's updated_at timestamp.
-func (r *AgentStatusRepository) AddForAgent(ctx context.Context, agentKID []byte, SuitManifestOverview []byte) error {
+func (r *AgentStatusRepository) AddForAgent(ctx context.Context, agentKID []byte, SuitManifestDigest []byte) error {
 	// Find agent ID and manifest ID and trusted_component_id in a single query
 	var agentID int64
 	var manifestID int64
@@ -38,7 +38,7 @@ func (r *AgentStatusRepository) AddForAgent(ctx context.Context, agentKID []byte
 		WHERE a.kid = ? AND sm.digest = ?
 		LIMIT 1
 	`
-	err := r.db.QueryRowContext(ctx, lookupQuery, agentKID, SuitManifestOverview).Scan(&agentID, &manifestID, &trustedComponentID)
+	err := r.db.QueryRowContext(ctx, lookupQuery, agentKID, SuitManifestDigest).Scan(&agentID, &manifestID, &trustedComponentID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return fmt.Errorf("agent or manifest not found")

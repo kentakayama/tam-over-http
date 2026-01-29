@@ -155,6 +155,11 @@ func (t *TAM) ResolveTEEPMessage(body []byte) ([]byte, error) {
 				}
 				key := eat.Cnf.Key
 
+				var ueid []byte
+				if eat.UEID != nil && eat.UEID.Validate() != nil {
+					ueid = []byte(*eat.UEID)
+				}
+
 				// verify QueryResponse signature
 				if err := verifyCOSESignature(body, key); err != nil {
 					t.logger.Printf("query-response verification failed: %v", err)
@@ -162,7 +167,7 @@ func (t *TAM) ResolveTEEPMessage(body []byte) ([]byte, error) {
 				}
 
 				// store the public key for future use
-				if err := t.setTEEPAgentKey(key); err != nil {
+				if err := t.setTEEPAgentKey(key, ueid); err != nil {
 					t.logger.Printf("failed to store attestation public key: %v", err)
 					return nil, ErrFatal
 				} else {
@@ -765,6 +770,28 @@ func (t *TAM) EnsureDefaultEntity(withManifest bool) error {
 		t.logger.Printf("Created default TAM Admin with ID: %d", admID)
 	}
 
+	// Create manifest signing key
+	var adminKeyID int64
+	adminKID := []byte("key-1")
+	keyRepo := sqlite.NewManifestSigningKeyRepository(t.db)
+	adminKey, err := keyRepo.FindByKID(t.ctx, adminKID)
+	if err != nil || adminKey == nil {
+		// create the key
+		key := &model.ManifestSigningKey{
+			KID:       []byte("key-1"),
+			EntityID:  admID,
+			PublicKey: []byte("pub-key-1"),
+		}
+		k, err := keyRepo.Create(t.ctx, key)
+		if err != nil {
+			t.logger.Printf("create manifest signing key error: %v", err)
+		} else {
+			adminKeyID = k
+		}
+	} else {
+		adminKeyID = adminKey.ID
+	}
+
 	// add default developer if not exists
 	defaultDev := &model.Entity{
 		Name:          "developer1@example.com",
@@ -789,7 +816,7 @@ func (t *TAM) EnsureDefaultEntity(withManifest bool) error {
 	}
 
 	// add default developer key if not exists
-	key := cose.Key{
+	developerKey := cose.Key{
 		Type:      cose.KeyTypeEC2,
 		Algorithm: cose.AlgorithmESP256,
 		Params: map[any]any{
@@ -808,11 +835,11 @@ func (t *TAM) EnsureDefaultEntity(withManifest bool) error {
 			},
 		},
 	}
-	kid, err := key.Thumbprint(crypto.SHA256)
+	kid, err := developerKey.Thumbprint(crypto.SHA256)
 	if err != nil {
 		return nil
 	}
-	encodedKey, err := cbor.Marshal(key)
+	encodedKey, err := cbor.Marshal(developerKey)
 	if err != nil {
 		return nil
 	}
@@ -822,8 +849,6 @@ func (t *TAM) EnsureDefaultEntity(withManifest bool) error {
 		EntityID:  devID,
 		PublicKey: encodedKey,
 	}
-	keyRepo := sqlite.NewManifestSigningKeyRepository(t.db)
-
 	var devKeyID int64
 	k, err := keyRepo.FindByKID(t.ctx, kid)
 	if err != nil {
@@ -841,6 +866,22 @@ func (t *TAM) EnsureDefaultEntity(withManifest bool) error {
 	}
 
 	if withManifest {
+		manifestRepo := sqlite.NewSuitManifestRepository(t.db)
+		trusted1 := []byte{0x81, 0x49, 0x61, 0x70, 0x70, 0x31, 0x2E, 0x77, 0x61, 0x73, 0x6D} // ['app1.wasm']
+		digestM1 := []byte("digest1")
+		m1 := &model.SuitManifest{Manifest: []byte("m1"), Digest: digestM1, SigningKeyID: adminKeyID, TrustedComponentID: trusted1, SequenceNumber: 3}
+		_, err = manifestRepo.Create(t.ctx, m1)
+		if err != nil {
+			t.logger.Printf("create manifest m1 error: %v", err)
+		}
+		trusted2 := []byte{0x81, 0x49, 0x61, 0x70, 0x70, 0x32, 0x2E, 0x77, 0x61, 0x73, 0x6D} // ['app2.wasm']
+		digestM2 := []byte("digest2")
+		m2 := &model.SuitManifest{Manifest: []byte("m2"), Digest: digestM2, SigningKeyID: adminKeyID, TrustedComponentID: trusted2, SequenceNumber: 2}
+		_, err = manifestRepo.Create(t.ctx, m2)
+		if err != nil {
+			t.logger.Printf("create manifest m2 error: %v", err)
+		}
+
 		tcID := []byte{
 			0x81,                                                       // [
 			0x49, 0x68, 0x65, 0x6c, 0x6c, 0x6f, 0x2e, 0x74, 0x78, 0x74, // 'hello.txt'
@@ -917,7 +958,7 @@ func (t *TAM) EnsureDefaultEntity(withManifest bool) error {
 			TrustedComponentID: tcID,
 			SequenceNumber:     0,
 		}
-		manifestRepo := sqlite.NewSuitManifestRepository(t.db)
+
 		m, err := manifestRepo.FindLatestByTrustedComponentID(t.ctx, tcID)
 		if err != nil {
 			return fmt.Errorf("failed to find default TC Manifest: %w", err)
@@ -992,7 +1033,7 @@ func (t *TAM) EnsureDefaultEntity(withManifest bool) error {
 	return nil
 }
 
-func (t *TAM) EnsureDefaultTEEPAgent() error {
+func (t *TAM) EnsureDefaultTEEPAgent(withStatus bool) error {
 	// XXX: initialize default entiries only for demo purpose
 
 	fixedESP256AgentKey := []byte{
@@ -1035,11 +1076,72 @@ func (t *TAM) EnsureDefaultTEEPAgent() error {
 	if agentESP256 != nil {
 		// OK, already exists
 	} else {
-		if err := t.setTEEPAgentKey(&keyESP256); err != nil {
+		if err := t.setTEEPAgentKey(&keyESP256, nil); err != nil {
 			// log the error but do not fail initialization
 			t.logger.Printf("Failed to store default ESP256 TEEP Agent's key: %v", err)
 		} else {
 			t.logger.Printf("Stored default ESP256 TEEP Agent's key %s in system keyring.", hex.EncodeToString(kidESP256))
+		}
+	}
+
+	if withStatus {
+		now := time.Now().UTC().Truncate(time.Second)
+
+		// Create an admin with full privileges
+		adminName := "admin@example.com"
+		entityRepo := sqlite.NewEntityRepository(t.db)
+		admin, err := entityRepo.FindByName(t.ctx, adminName)
+		if err != nil || admin == nil {
+			t.logger.Fatal("failed to find admin: %w", err)
+			return nil
+		}
+
+		// Create a device directly and get its ID
+		var deviceID *int64
+		ueid := append([]byte{0x01}, []byte("building-dev-123")...)
+		deviceRepo := sqlite.NewDeviceRepository(t.db)
+		device, err := deviceRepo.FindByUEID(t.ctx, ueid)
+		if err != nil || device == nil {
+			// dummy random UEID with 128-bit field and 1 byte prefix
+			deviceModel := &model.Device{UEID: ueid, AdminID: admin.ID, CreatedAt: now}
+			deviceIDVal, err := deviceRepo.Create(t.ctx, deviceModel)
+			if err != nil {
+				// can be ignored
+				t.logger.Printf("insert device error: %v", err)
+			} else {
+				deviceID = &deviceIDVal
+			}
+		}
+
+		// create an agent
+		agentKID := []byte("dummy-teep-agent-kid-for-dev-123")
+		agentRepo := sqlite.NewAgentRepository(t.db)
+		agent, err := agentRepo.FindByKID(t.ctx, agentKID)
+		if err != nil || agent == nil {
+			agentModel := &model.Agent{KID: agentKID, DeviceID: deviceID, PublicKey: []byte("pk"), CreatedAt: now, ExpiredAt: now.Add(30 * 365 * 24 * time.Hour)}
+			_, err = agentRepo.Create(t.ctx, agentModel)
+			if err != nil {
+				t.logger.Printf("create agent error: %v", err)
+			}
+		}
+
+		// create an agent status
+		agentStatusRepo := sqlite.NewAgentStatusRepository(t.db)
+		agentStatus, err := agentStatusRepo.GetAgentStatus(t.ctx, agentKID)
+		if err != nil || agentStatus == nil {
+			t.logger.Printf("failed to find agent status: %v", err)
+		} else {
+			digestM1 := []byte("digest1")
+			err = agentStatusRepo.AddForAgent(t.ctx, agentKID, digestM1)
+			if err != nil {
+				t.logger.Printf("create agent status 1 error: %v", err)
+			}
+
+			digestM2 := []byte("digest2")
+			err = agentStatusRepo.AddForAgent(t.ctx, agentKID, digestM2)
+			if err != nil {
+				t.logger.Printf("create agent status 2 error: %v", err)
+			}
 		}
 	}
 

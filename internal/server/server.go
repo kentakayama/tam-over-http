@@ -54,7 +54,7 @@ func New(cfg config.TAMConfig) (*Server, error) {
 	if err = tam.EnsureDefaultEntity(false); err != nil {
 		return nil, err
 	}
-	if err = tam.EnsureDefaultTEEPAgent(); err != nil {
+	if err = tam.EnsureDefaultTEEPAgent(false); err != nil {
 		return nil, err
 	}
 
